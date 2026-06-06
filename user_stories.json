@@ -1,0 +1,17 @@
+{
+  "user_stories": [
+    {
+      "id": "US-001",
+      "title": "Email login",
+      "as_a": "registered user",
+      "i_want": "to log in with my email address",
+      "so_that": "I can securely access my account",
+      "acceptance_criteria": [
+        "Given a registered user, when valid credentials are submitted, then access is granted.",
+        "Given invalid credentials, when login is attempted, then an error is shown."
+      ],
+      "priority": "must-have",
+      "story_points": 3
+    }
+  ]
+}
