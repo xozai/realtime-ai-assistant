@@ -49,8 +49,31 @@ The realtime session registers these tools with the model:
 - `summarize_requirements()`
 - `generate_user_stories()`
 - `export_user_stories(format: str)`
+- `submit_stories_to_jira(project_key: str)`
 
 When the model calls a tool, `main.py` receives the function-call event, dispatches it through `tools.py`, writes the function output back to the conversation, and asks the realtime model to continue. Captured requirements are stored in `SessionMemory`, then used by `llm.py` to produce structured `UserStory` objects.
+
+## Jira Integration
+
+The assistant can submit generated user stories to Jira as Story issues. Configure these environment variables in `.env`:
+
+```bash
+JIRA_BASE_URL=https://your-org.atlassian.net
+JIRA_USER_EMAIL=you@example.com
+JIRA_API_TOKEN=your_jira_api_token_here
+JIRA_STORY_POINTS_FIELD=story_points
+```
+
+Create a Jira API token at https://id.atlassian.com/manage-profile/security/api-tokens and use it as `JIRA_API_TOKEN`. The `JIRA_STORY_POINTS_FIELD` value should match your Jira story points field key.
+
+Example dialogue:
+
+```text
+User: Submit these stories to Jira project MYAPP.
+Assistant: Submitted 4 stories to MYAPP: MYAPP-101, MYAPP-102, MYAPP-103, MYAPP-104.
+```
+
+The tool returns the created issue keys so the assistant can report exactly which Jira issues were created.
 
 ## Example Session Transcript
 
@@ -127,6 +150,7 @@ realtime-ai-assistant/
     └── realtime_assistant/
         ├── main.py
         ├── tools.py
+        ├── jira_client.py
         ├── models.py
         ├── llm.py
         ├── memory.py

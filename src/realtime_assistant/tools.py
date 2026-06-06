@@ -9,6 +9,7 @@ from rich.table import Table
 
 from realtime_assistant import export as story_export
 from realtime_assistant import llm
+from realtime_assistant.jira_client import JiraClient
 from realtime_assistant.logging import (
     console,
     log_clarifying_question,
@@ -17,7 +18,7 @@ from realtime_assistant.logging import (
     logger,
 )
 from realtime_assistant.memory import memory
-from realtime_assistant.models import RequirementCategory, UserStory
+from realtime_assistant.models import JiraConfig, RequirementCategory, UserStory
 
 ToolHandler = Callable[..., Awaitable[Any]]
 
@@ -86,6 +87,25 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             "additionalProperties": False,
         },
     },
+    {
+        "type": "function",
+        "name": "submit_stories_to_jira",
+        "description": (
+            "Submit all generated user stories to a Jira project as Story issues. "
+            "Call this after generate_user_stories. Returns the created Jira issue keys."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "project_key": {
+                    "type": "string",
+                    "description": "The Jira project key, e.g. PROJ or MYAPP",
+                }
+            },
+            "required": ["project_key"],
+            "additionalProperties": False,
+        },
+    },
 ]
 
 
@@ -141,12 +161,46 @@ async def export_user_stories(format: str = "all") -> dict[str, Any]:
     return {"ok": True, "paths": [str(path) for path in paths], "story_count": len(stories)}
 
 
+async def submit_stories_to_jira(project_key: str) -> dict[str, Any]:
+    try:
+        config = JiraConfig.from_env()
+    except KeyError as exc:
+        return {"ok": False, "error": f"Missing Jira configuration environment variable: {exc.args[0]}"}
+
+    try:
+        client = JiraClient(config)
+        if not client.validate_project(project_key):
+            return {
+                "ok": False,
+                "error": f"Jira project '{project_key}' was not found or is not accessible.",
+            }
+
+        stories = memory.list_user_stories()
+        if not stories:
+            return {
+                "ok": False,
+                "error": "No user stories in memory. Run generate_user_stories first.",
+            }
+
+        created_issues = [client.create_issue(project_key, story) for story in stories]
+    except Exception as exc:
+        return {"ok": False, "error": f"Failed to submit stories to Jira: {exc}"}
+
+    return {
+        "ok": True,
+        "project_key": project_key,
+        "created_issues": created_issues,
+        "count": len(created_issues),
+    }
+
+
 FUNCTION_MAP: dict[str, ToolHandler] = {
     "capture_requirement": capture_requirement,
     "ask_clarifying_question": ask_clarifying_question,
     "summarize_requirements": summarize_requirements,
     "generate_user_stories": generate_user_stories,
     "export_user_stories": export_user_stories,
+    "submit_stories_to_jira": submit_stories_to_jira,
 }
 
 

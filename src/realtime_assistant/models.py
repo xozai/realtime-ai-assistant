@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from typing import Literal
 from uuid import uuid4
@@ -39,6 +40,22 @@ class UserStory(BaseModel):
 
 class UserStorySet(BaseModel):
     user_stories: list[UserStory]
+
+
+class JiraConfig(BaseModel):
+    base_url: str
+    user_email: str
+    api_token: str
+    story_points_field: str = "story_points"
+
+    @classmethod
+    def from_env(cls) -> "JiraConfig":
+        return cls(
+            base_url=os.environ["JIRA_BASE_URL"],
+            user_email=os.environ["JIRA_USER_EMAIL"],
+            api_token=os.environ["JIRA_API_TOKEN"],
+            story_points_field=os.environ.get("JIRA_STORY_POINTS_FIELD", "story_points"),
+        )
 
 
 class DiscoverySession(BaseModel):
