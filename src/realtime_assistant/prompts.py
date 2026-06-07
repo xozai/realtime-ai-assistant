@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from realtime_assistant.models import Requirement
 
-
 STORY_GENERATION_PROMPT = """Generate Agile user stories from captured software requirements.
 
 Return structured data only. Each story must include an Agile persona, goal, benefit,
