@@ -6,7 +6,6 @@ from urllib import error, request
 
 from realtime_assistant.models import JiraConfig, UserStory
 
-
 PRIORITY_MAP = {
     "must-have": "Highest",
     "should-have": "High",
@@ -82,7 +81,7 @@ class JiraClient:
         return json.loads(response_body)
 
     def _authorization_header(self) -> str:
-        raw = f"{self.config.user_email}:{self.config.api_token}".encode("utf-8")
+        raw = f"{self.config.user_email}:{self.config.api_token}".encode()
         return f"Basic {base64.b64encode(raw).decode('ascii')}"
 
     @staticmethod

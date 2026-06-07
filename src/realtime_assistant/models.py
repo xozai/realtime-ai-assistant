@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator
-
 
 RequirementCategory = Literal["functional", "non-functional", "constraint", "assumption"]
 Priority = Literal["must-have", "should-have", "could-have", "wont-have"]
@@ -16,7 +15,7 @@ class Requirement(BaseModel):
     id: str = Field(default_factory=lambda: f"REQ-{uuid4().hex[:8].upper()}")
     text: str
     category: RequirementCategory
-    captured_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    captured_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class UserStory(BaseModel):
@@ -49,7 +48,7 @@ class JiraConfig(BaseModel):
     story_points_field: str = "story_points"
 
     @classmethod
-    def from_env(cls) -> "JiraConfig":
+    def from_env(cls) -> JiraConfig:
         return cls(
             base_url=os.environ["JIRA_BASE_URL"],
             user_email=os.environ["JIRA_USER_EMAIL"],
@@ -60,6 +59,6 @@ class JiraConfig(BaseModel):
 
 class DiscoverySession(BaseModel):
     session_id: str = Field(default_factory=lambda: f"DISC-{uuid4().hex[:8].upper()}")
-    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     requirements: list[Requirement] = Field(default_factory=list)
     user_stories: list[UserStory] = Field(default_factory=list)

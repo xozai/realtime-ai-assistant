@@ -6,7 +6,6 @@ from realtime_assistant.dashboard import app
 from realtime_assistant.memory import memory
 from realtime_assistant.models import Requirement, UserStory
 
-
 client = TestClient(app)
 
 

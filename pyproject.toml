@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "realtime-ai-assistant"
-version = "0.2.1"
+version = "0.2.0"
 description = "Realtime AI assistant for software discovery calls and Agile user story generation."
 readme = "README.md"
 license = { text = "MIT" }
@@ -15,6 +15,18 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "rich>=13.7.1",
     "websockets>=12.0",
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.29.0",
+    "httpx>=0.27.0",
+]
+
+[project.optional-dependencies]
+voice = ["sounddevice>=0.4.6"]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.4.0",
+    "sounddevice>=0.4.6",
 ]
 
 [tool.setuptools.packages.find]
@@ -24,5 +36,16 @@ where = ["src"]
 line-length = 100
 target-version = "py311"
 
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# main.py uses a sys.path bootstrap block before imports — E402 is intentional
+"src/realtime_assistant/main.py" = ["E402"]
+# test_audio.py stubs sounddevice into sys.modules before importing the module under test
+"tests/test_audio.py" = ["E402"]
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+asyncio_mode = "auto"

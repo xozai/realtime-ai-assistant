@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import queue
 import threading
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 SAMPLE_RATE = 24000
 CHANNELS = 1

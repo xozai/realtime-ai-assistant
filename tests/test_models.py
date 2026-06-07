@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -69,9 +69,9 @@ def test_story_points_rejects_non_fibonacci_values(points: int) -> None:
 
 
 def test_captured_at_defaults_to_now() -> None:
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
     requirement = Requirement(text="Users can export reports", category="functional")
-    after = datetime.now(timezone.utc)
+    after = datetime.now(UTC)
     assert before <= requirement.captured_at <= after
 
 
