@@ -13,6 +13,7 @@ if str(SRC_DIR) not in sys.path:
 import argparse
 import asyncio
 import base64
+import contextlib
 import json
 import os
 from typing import Any
@@ -44,6 +45,17 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Enable live microphone input (requires sounddevice).",
     )
+    parser.add_argument(
+        "--no-dashboard",
+        action="store_true",
+        help="Disable the web dashboard.",
+    )
+    parser.add_argument(
+        "--dashboard-port",
+        type=int,
+        default=8000,
+        help="Port for the web dashboard.",
+    )
     return parser.parse_args()
 
 
@@ -60,6 +72,13 @@ async def main() -> None:
         "Authorization": f"Bearer {api_key}",
         "OpenAI-Beta": "realtime=v1",
     }
+
+    dashboard_task: asyncio.Task[None] | None = None
+    if not args.no_dashboard:
+        from realtime_assistant.server import start_dashboard
+
+        dashboard_task = await start_dashboard(port=args.dashboard_port)
+        console.print(f"📊 Dashboard running at http://localhost:{args.dashboard_port}")
 
     mic_stream = None
     if args.voice:
@@ -94,6 +113,10 @@ async def main() -> None:
             for task in done:
                 task.result()
     finally:
+        if dashboard_task is not None:
+            dashboard_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await dashboard_task
         if mic_stream is not None:
             mic_stream.stop()
 

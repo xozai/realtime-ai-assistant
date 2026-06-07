@@ -34,11 +34,47 @@ OPENAI_API_KEY=your_real_key_here
 python src/realtime_assistant/main.py
 ```
 
+The web dashboard starts by default at http://localhost:8000.
+
 You can also run a scripted text session:
 
 ```bash
 python src/realtime_assistant/main.py --prompts "We need a task manager app|Users need tasks, projects, reminders, and sharing|Generate stories"
 ```
+
+## Web Dashboard
+
+The FastAPI dashboard runs in the same process as the realtime assistant and
+shows live requirements and generated user stories during a discovery session.
+It uses an inline dark-theme single-page UI with automatic refresh every few
+seconds.
+
+Open the dashboard:
+
+```text
+http://localhost:8000
+```
+
+Disable it when you only want the terminal assistant:
+
+```bash
+python src/realtime_assistant/main.py --no-dashboard
+```
+
+Run it on another port:
+
+```bash
+python src/realtime_assistant/main.py --dashboard-port 8080
+```
+
+Dashboard endpoints:
+
+- `GET /` - inline HTML dashboard
+- `GET /api/requirements` - captured requirements
+- `GET /api/stories` - generated user stories
+- `GET /api/session` - session ID, start time, and counts
+- `POST /api/export` - export user stories to JSON and Markdown
+- `POST /api/jira/{project_key}` - submit generated stories to Jira
 
 ## Voice Input Mode
 
