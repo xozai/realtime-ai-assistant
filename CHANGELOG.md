@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/xozai/realtime-ai-assistant/compare/v0.2.0...v0.2.1) (2026-06-07)
+
+
+### Documentation
+
+* add MIT license, badge, and license section to README ([#10](https://github.com/xozai/realtime-ai-assistant/issues/10)) ([b38d995](https://github.com/xozai/realtime-ai-assistant/commit/b38d9955bbd948177926f34021a72325664b3681))
+
 ## [0.2.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.1.0...v0.2.0) (2026-06-07)
 
 
