@@ -2,16 +2,29 @@
 
 A Python 3.11+ realtime AI assistant for software discovery calls. It opens an OpenAI Realtime API WebSocket session, guides a requirements conversation, captures requirements through tool calls, and generates Agile user stories with Pydantic structured output.
 
-This project follows the core patterns from [`disler/poc-realtime-ai-assistant`](https://github.com/disler/poc-realtime-ai-assistant): an async Realtime API event loop, registered tool schemas plus a function dispatch map, Rich terminal logs, in-session memory, and structured LLM parsing.
+Inspired by [`disler/poc-realtime-ai-assistant`](https://github.com/disler/poc-realtime-ai-assistant) — reuses its async Realtime API event loop, tool-chaining pattern, Rich terminal logs, in-session memory, and structured LLM parsing.
 
-## What It Does
+---
 
-- Runs a concise discovery-call assistant over the OpenAI Realtime API.
-- Captures requirements during the conversation with `capture_requirement`.
-- Tracks clarifying questions with `ask_clarifying_question`.
-- Prints captured requirements with `summarize_requirements`.
-- Generates structured `UserStory` objects with OpenAI Chat Completions and Pydantic.
-- Exports generated stories to `user_stories.json` and `user_stories.md` in the project root.
+## Features
+
+| Feature | Status |
+|---|---|
+| Realtime API discovery assistant (text) | ✅ Shipped |
+| Structured user-story generation (Pydantic) | ✅ Shipped |
+| JSON + Markdown export | ✅ Shipped |
+| Jira integration (`submit_stories_to_jira`) | ✅ Shipped |
+| Voice input mode (`--voice`, server VAD) | ✅ Shipped |
+| Web dashboard (FastAPI, dark theme, live refresh) | ✅ Shipped |
+| Conversation transcript | 🔜 [#1](https://github.com/xozai/realtime-ai-assistant/issues/1) P1 |
+| Session resume | 🔜 [#2](https://github.com/xozai/realtime-ai-assistant/issues/2) P2 |
+| Multi-product support | 🔜 [#3](https://github.com/xozai/realtime-ai-assistant/issues/3) P2 |
+| Confidence scoring | 🔜 [#4](https://github.com/xozai/realtime-ai-assistant/issues/4) P2 |
+| Requirement deduplication (embeddings) | 🔜 [#5](https://github.com/xozai/realtime-ai-assistant/issues/5) P2 |
+| Slack / Teams notifications | 🔜 [#6](https://github.com/xozai/realtime-ai-assistant/issues/6) P3 |
+| Export to Confluence | 🔜 [#7](https://github.com/xozai/realtime-ai-assistant/issues/7) P3 |
+
+---
 
 ## Install
 
@@ -25,158 +38,185 @@ cp .env.example .env
 Edit `.env`:
 
 ```bash
-OPENAI_API_KEY=your_real_key_here
+OPENAI_API_KEY=your_key_here
 ```
+
+---
 
 ## Run
 
+### Text mode (default)
+
 ```bash
 python src/realtime_assistant/main.py
 ```
 
-The web dashboard starts by default at http://localhost:8000.
+The web dashboard starts automatically at **http://localhost:8000**. Type messages at the prompt. Type `quit` or `exit` to end the session.
 
-You can also run a scripted text session:
-
-```bash
-python src/realtime_assistant/main.py --prompts "We need a task manager app|Users need tasks, projects, reminders, and sharing|Generate stories"
-```
-
-## Web Dashboard
-
-The FastAPI dashboard runs in the same process as the realtime assistant and
-shows live requirements and generated user stories during a discovery session.
-It uses an inline dark-theme single-page UI with automatic refresh every few
-seconds.
-
-Open the dashboard:
-
-```text
-http://localhost:8000
-```
-
-Disable it when you only want the terminal assistant:
+### Voice mode
 
 ```bash
-python src/realtime_assistant/main.py --no-dashboard
-```
-
-Run it on another port:
-
-```bash
-python src/realtime_assistant/main.py --dashboard-port 8080
-```
-
-Dashboard endpoints:
-
-- `GET /` - inline HTML dashboard
-- `GET /api/requirements` - captured requirements
-- `GET /api/stories` - generated user stories
-- `GET /api/session` - session ID, start time, and counts
-- `POST /api/export` - export user stories to JSON and Markdown
-- `POST /api/jira/{project_key}` - submit generated stories to Jira
-
-## Voice Input Mode
-
-Voice input mode streams live microphone audio to the OpenAI Realtime API and lets
-server-side VAD detect when the user has finished speaking.
-
-Requirements:
-
-- Install `sounddevice`: `pip install sounddevice`
-- Use a working microphone configured for your OS
-
-Run voice mode:
-
-```bash
+pip install sounddevice   # one-time; requires a working microphone
 python src/realtime_assistant/main.py --voice
 ```
 
-The assistant sends PCM16 mono audio at 24 kHz to the Realtime API. Text mode is
-still the default:
+Streams PCM16 mono audio at 24 kHz to the Realtime API. Server-side VAD detects end of speech.
+
+### Scripted session
 
 ```bash
-python src/realtime_assistant/main.py
+python src/realtime_assistant/main.py --prompts "We need a task manager|Users need tasks and reminders|Generate stories"
 ```
+
+---
+
+## CLI Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--voice` | off | Live microphone input (requires `sounddevice`) |
+| `--no-dashboard` | off | Disable the web dashboard |
+| `--dashboard-port PORT` | `8000` | Dashboard port |
+
+---
+
+## Web Dashboard
+
+The FastAPI dashboard runs in the same process and shows live requirements and user stories with a dark-theme two-panel layout. Auto-refreshes every 3 seconds.
+
+Open: **http://localhost:8000**
+
+```bash
+# Disable
+python src/realtime_assistant/main.py --no-dashboard
+
+# Custom port
+python src/realtime_assistant/main.py --dashboard-port 9000
+```
+
+### Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/` | Inline dark-theme SPA |
+| `GET` | `/api/requirements` | All captured requirements |
+| `GET` | `/api/stories` | All generated user stories |
+| `GET` | `/api/session` | Session ID, start time, counts |
+| `POST` | `/api/export` | Export stories to JSON + Markdown |
+| `POST` | `/api/jira/{project_key}` | Submit stories to Jira |
+
+The dashboard has **Export** and **Submit to Jira** buttons that call these endpoints directly from the browser.
+
+---
 
 ## Tool Chain
 
-The realtime session registers these tools with the model:
+The Realtime session registers these tools with the model:
 
-- `capture_requirement(requirement: str, category: str)`
-- `ask_clarifying_question(topic: str, question: str)`
-- `summarize_requirements()`
-- `generate_user_stories()`
-- `export_user_stories(format: str)`
-- `submit_stories_to_jira(project_key: str)`
+| Tool | Description |
+|---|---|
+| `capture_requirement(requirement, category)` | Store a requirement in session memory |
+| `ask_clarifying_question(topic, question)` | Log a clarifying question |
+| `summarize_requirements()` | Print all captured requirements to terminal |
+| `generate_user_stories()` | Produce structured `UserStory` objects via Chat Completions |
+| `export_user_stories(format)` | Write `user_stories.json` and `user_stories.md` |
+| `submit_stories_to_jira(project_key)` | Create Jira Story issues for each story |
 
-When the model calls a tool, `main.py` receives the function-call event, dispatches it through `tools.py`, writes the function output back to the conversation, and asks the realtime model to continue. Captured requirements are stored in `SessionMemory`, then used by `llm.py` to produce structured `UserStory` objects.
+When the model calls a tool, `main.py` receives the function-call event, dispatches it through `dispatch_tool` in `tools.py`, writes the result back to the conversation, and asks the model to continue.
+
+**Requirement categories:** `functional` · `non-functional` · `constraint` · `assumption`
+
+**Story priorities:** `must-have` · `should-have` · `could-have` · `wont-have`
+
+**Story points:** Fibonacci — `1, 2, 3, 5, 8, 13` (Pydantic-validated)
+
+---
 
 ## Jira Integration
 
-The assistant can submit generated user stories to Jira as Story issues. Configure these environment variables in `.env`:
+Submits generated stories to Jira as Story issues via the Atlassian REST API v3. Uses stdlib `urllib` — no extra dependencies.
+
+Add to `.env`:
 
 ```bash
 JIRA_BASE_URL=https://your-org.atlassian.net
 JIRA_USER_EMAIL=you@example.com
-JIRA_API_TOKEN=your_jira_api_token_here
-JIRA_STORY_POINTS_FIELD=story_points
+JIRA_API_TOKEN=your_api_token_here
+JIRA_STORY_POINTS_FIELD=story_points   # or customfield_10016
 ```
 
-Create a Jira API token at https://id.atlassian.com/manage-profile/security/api-tokens and use it as `JIRA_API_TOKEN`. The `JIRA_STORY_POINTS_FIELD` value should match your Jira story points field key.
+Get a Jira API token at https://id.atlassian.com/manage-profile/security/api-tokens.
 
-Example dialogue:
+### Priority mapping
+
+| Story priority | Jira priority |
+|---|---|
+| `must-have` | Highest |
+| `should-have` | High |
+| `could-have` | Medium |
+| `wont-have` | Low |
+
+### Example dialogue
 
 ```text
-User: Submit these stories to Jira project MYAPP.
-Assistant: Submitted 4 stories to MYAPP: MYAPP-101, MYAPP-102, MYAPP-103, MYAPP-104.
+User:      Submit these stories to Jira project MYAPP.
+Assistant: Submitted 4 stories: MYAPP-101, MYAPP-102, MYAPP-103, MYAPP-104.
 ```
 
-The tool returns the created issue keys so the assistant can report exactly which Jira issues were created.
+---
+
+## Voice Input Mode
+
+```bash
+pip install sounddevice
+python src/realtime_assistant/main.py --voice
+```
+
+- Streams PCM16 mono at 24 kHz to the Realtime API
+- Server-side VAD (`server_vad`) handles turn detection automatically
+- Session config switches to `modalities: ["text", "audio"]` and injects a voice-mode system prompt
+- Text mode remains the default — `sounddevice` is only imported when `--voice` is passed
+
+---
 
 ## Example Session Transcript
 
-```text
-Assistant: Hi, I’ll help turn this discovery call into implementation-ready user stories. What problem are you trying to solve?
+```
+Assistant: Hi! I'll help turn this discovery call into implementation-ready user stories.
+           What problem are you trying to solve?
 
-User: We need a task manager for small teams. People should create tasks, organize them by project, and get reminders.
+User: We need a task manager for small teams — create tasks, organize by project, get reminders.
 
-[Requirement Captured]
-ID: REQ-4A12C9E0
-Category: functional
-Text: Users can create tasks for small-team work.
+[Requirement Captured] REQ-4A12C9E0 · functional
+  Users can create tasks for small-team work.
 
-[Requirement Captured]
-ID: REQ-19B2D33F
-Category: functional
-Text: Users can organize tasks by project.
+[Requirement Captured] REQ-19B2D33F · functional
+  Users can organize tasks by project.
 
-[Requirement Captured]
-ID: REQ-80BA912A
-Category: functional
-Text: Users receive reminders for upcoming task deadlines.
+[Requirement Captured] REQ-80BA912A · functional
+  Users receive reminders for upcoming task deadlines.
+Assistant: What should collaboration look like?
 
-Assistant: What should collaboration look like for the first release?
+User: Project owners can invite teammates by email.
 
-User: Project owners can invite teammates by email. Keep it simple.
-
-[Requirement Captured]
-ID: REQ-1D88F20A
-Category: functional
-Text: Project owners can invite teammates to shared projects by email.
+[Requirement Captured] REQ-1D88F20A - functional
+  Project owners can invite teammates to shared projects by email.
 
 User: Generate stories.
 
 [Generated User Stories]
-US-001 Create Personal Tasks
-US-002 Organize Tasks By Project
-US-003 Receive Due Date Reminders
-US-004 Share A Project With Collaborators
+US-001  Create Personal Tasks              must-have    3 pts
+US-002  Organize Tasks By Project          should-have  5 pts
+US-003  Receive Due Date Reminders         must-have    5 pts
+US-004  Share A Project With Collaborators could-have   8 pts
 ```
+
+---
 
 ## Sample Output
 
-The repository includes a pre-populated fictional task-manager output at `user_stories.md` and `user_stories.json`. A generated Markdown story looks like this:
+Pre-populated fictional output lives at `user_stories.md` and `user_stories.json`.
+A generated Markdown story looks like:
 
 ```markdown
 ## US-001: Create Personal Tasks
@@ -195,31 +235,108 @@ The repository includes a pre-populated fictional task-manager output at `user_s
 - Newly created tasks appear immediately in the active task list.
 ```
 
+---
+
 ## Project Structure
 
 ```text
 realtime-ai-assistant/
 ├── README.md
+├── REVIEW.md                    # code review findings
+├── TEST_RESULTS.md              # test run summary
+├── MVP_ROADMAP.md               # 10-feature MVP roadmap
 ├── .env.example
 ├── requirements.txt
 ├── pyproject.toml
-├── user_stories.json
-├── user_stories.md
-└── src/
-    └── realtime_assistant/
-        ├── main.py
-        ├── tools.py
-        ├── jira_client.py
-        ├── models.py
-        ├── llm.py
-        ├── memory.py
-        ├── prompts.py
-        ├── export.py
-        └── logging.py
+├── user_stories.json            # sample output
+├── user_stories.md              # sample output
+├── src/
+│   └── realtime_assistant/
+│       ├── main.py              # async entry point, WebSocket loop, CLI flags
+│       ├── tools.py             # tool definitions, handlers, dispatch map
+│       ├── models.py            # Pydantic models (Requirement, UserStory, JiraConfig...)
+│       ├── llm.py               # structured output + story generation
+│       ├── memory.py            # SessionMemory CRUD
+│       ├── prompts.py           # SYSTEM_PROMPT, VOICE_MODE_INTRO, story prompt
+│       ├── export.py            # JSON + Markdown export
+│       ├── jira_client.py       # JiraClient (stdlib urllib, no extra deps)
+│       ├── audio.py             # MicrophoneStream for --voice mode
+│       ├── dashboard.py         # FastAPI app + inline HTML/CSS/JS SPA
+│       ├── server.py            # uvicorn async task wrapper
+│       └── logging.py           # Rich logger config
+└── tests/
+    ├── conftest.py
+    ├── test_models.py
+    ├── test_memory.py
+    ├── test_export.py
+    ├── test_tools.py
+    ├── test_prompts.py
+    ├── test_jira_client.py
+    ├── test_tool_jira.py
+    ├── test_audio.py
+    ├── test_voice_mode.py
+    └── test_dashboard.py
 ```
+
+---
+
+## Tests
+
+The project ships with a full pytest suite (60 tests) covering models, memory,
+export, tool handlers, Jira client, voice mode, and the dashboard.
+
+```bash
+pip install pytest pytest-asyncio fastapi httpx uvicorn
+pytest tests/ -v
+```
+
+| Test file | What it covers |
+|---|---|
+| `test_models.py` | Pydantic validation, Fibonacci points, category/priority literals |
+| `test_memory.py` | SessionMemory CRUD, duplicate ID handling |
+| `test_export.py` | JSON + Markdown export, overwrite behavior |
+| `test_tools.py` | Tool handler functions (mocked OpenAI) |
+| `test_prompts.py` | SYSTEM_PROMPT content assertions |
+| `test_jira_client.py` | JiraClient HTTP (mocked), priority mapping, description format |
+| `test_tool_jira.py` | submit_stories_to_jira handler (mocked), error cases |
+| `test_audio.py` | MicrophoneStream (sounddevice fully mocked) |
+| `test_voice_mode.py` | Voice session config, voice_sender encoding, --voice wiring |
+| `test_dashboard.py` | FastAPI endpoints via TestClient |
+
+**Current count: 60 passing, 0 failures.**
+
+---
+
+## Repo Docs
+
+| File | Description |
+|---|---|
+| `REVIEW.md` | Code review findings (critical / major / minor severity) |
+| `TEST_RESULTS.md` | Test run summary — baseline failures found and fixed |
+| `MVP_ROADMAP.md` | 10-feature roadmap with complexity, priority, implementation notes |
+
+---
+
+## MVP Roadmap
+
+Open issues tracking upcoming features:
+
+| # | Feature | Priority |
+|---|---|---|
+| [#1](https://github.com/xozai/realtime-ai-assistant/issues/1) | Conversation Transcript | P1 |
+| [#2](https://github.com/xozai/realtime-ai-assistant/issues/2) | Session Resume | P2 |
+| [#3](https://github.com/xozai/realtime-ai-assistant/issues/3) | Multi-Product Support | P2 |
+| [#4](https://github.com/xozai/realtime-ai-assistant/issues/4) | Confidence Scoring | P2 |
+| [#5](https://github.com/xozai/realtime-ai-assistant/issues/5) | Requirement Deduplication | P2 |
+| [#6](https://github.com/xozai/realtime-ai-assistant/issues/6) | Slack / Teams Notifications | P3 |
+| [#7](https://github.com/xozai/realtime-ai-assistant/issues/7) | Export to Confluence | P3 |
+
+---
 
 ## Notes
 
-- `generate_user_stories` uses Pydantic structured output via `client.beta.chat.completions.parse` when available, with a JSON-schema fallback for compatible OpenAI client versions.
-- The realtime client is terminal text-first. It uses the Realtime API WebSocket event loop and tool-calling flow, so audio input/output can be added without changing the memory, tool, export, or structured-output layers.
-- No API keys are hardcoded. All credentials are read from `.env`.
+- `generate_user_stories` uses Pydantic structured output via `client.beta.chat.completions.parse` with a JSON-schema fallback for compatible OpenAI client versions.
+- Jira submission uses stdlib `urllib` only — no `requests` or `httpx` required in the core app.
+- The dashboard runs in the same async event loop via a non-blocking `asyncio.create_task` wrapping `uvicorn.Server`.
+- `sounddevice` is only imported inside the voice code path — the app starts fine without it when not using `--voice`.
+- No credentials are hardcoded. All secrets are read from `.env` via `python-dotenv`.
