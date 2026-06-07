@@ -5,3 +5,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
+
+# build artifacts
+*.egg-info/
+uv.lock
