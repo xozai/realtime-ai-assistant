@@ -18,3 +18,8 @@ def test_system_prompt_contains_key_phrases() -> None:
 def test_story_generation_prompt_constant_is_non_empty_string() -> None:
     assert isinstance(prompts.STORY_GENERATION_PROMPT, str)
     assert prompts.STORY_GENERATION_PROMPT.strip()
+
+
+def test_voice_mode_intro_constant_is_non_empty_string() -> None:
+    assert isinstance(prompts.VOICE_MODE_INTRO, str)
+    assert prompts.VOICE_MODE_INTRO.strip()

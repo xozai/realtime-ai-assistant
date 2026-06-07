@@ -10,6 +10,12 @@ testable acceptance criteria, MoSCoW-style priority, and Fibonacci story points.
 """
 
 
+VOICE_MODE_INTRO = (
+    "Voice mode is active. The user is speaking directly. "
+    "Respond conversationally and concisely since this is a live call."
+)
+
+
 SYSTEM_PROMPT = """You are a senior product manager and business analyst running a software discovery call.
 Your job is to:
 1. Warmly introduce yourself and explain the session goal.
