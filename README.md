@@ -1,5 +1,7 @@
 # Realtime AI Assistant
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A Python 3.11+ realtime AI assistant for software discovery calls. It opens an OpenAI Realtime API WebSocket session, guides a requirements conversation, captures requirements through tool calls, and generates Agile user stories with Pydantic structured output.
 
 Inspired by [`disler/poc-realtime-ai-assistant`](https://github.com/disler/poc-realtime-ai-assistant) — reuses its async Realtime API event loop, tool-chaining pattern, Rich terminal logs, in-session memory, and structured LLM parsing.
@@ -330,6 +332,14 @@ Open issues tracking upcoming features:
 | [#5](https://github.com/xozai/realtime-ai-assistant/issues/5) | Requirement Deduplication | P2 |
 | [#6](https://github.com/xozai/realtime-ai-assistant/issues/6) | Slack / Teams Notifications | P3 |
 | [#7](https://github.com/xozai/realtime-ai-assistant/issues/7) | Export to Confluence | P3 |
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE) for the full text.
+
+All dependencies (`openai`, `pydantic`, `fastapi`, `rich`, `websockets`, `uvicorn`, `httpx`, `sounddevice`, `python-dotenv`) use permissive licenses (MIT, Apache 2.0, BSD-3). No copyleft dependencies.
 
 ---
 

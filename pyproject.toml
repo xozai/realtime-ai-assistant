@@ -7,6 +7,7 @@ name = "realtime-ai-assistant"
 version = "0.2.0"
 description = "Realtime AI assistant for software discovery calls and Agile user story generation."
 readme = "README.md"
+license = { text = "MIT" }
 requires-python = ">=3.11"
 dependencies = [
     "openai>=1.82.0",
