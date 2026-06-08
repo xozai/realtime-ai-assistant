@@ -20,6 +20,7 @@ from realtime_assistant.logging import (
 )
 from realtime_assistant.memory import memory
 from realtime_assistant.models import JiraConfig, RequirementCategory, UserStory
+from realtime_assistant.transcript import TranscriptWriter
 
 ToolHandler = Callable[..., Awaitable[Any]]
 
@@ -217,17 +218,35 @@ def to_json_safe(value: Any) -> Any:
     return value
 
 
-async def dispatch_tool(name: str, arguments_json: str | None) -> Any:
+async def dispatch_tool(
+    name: str,
+    arguments_json: str | None,
+    transcript: TranscriptWriter | None = None,
+) -> Any:
     handler = FUNCTION_MAP.get(name)
     if handler is None:
-        return {"ok": False, "error": f"Unknown tool: {name}"}
+        result = {"ok": False, "error": f"Unknown tool: {name}"}
+        if transcript is not None:
+            transcript.record_tool_call(name, {})
+            transcript.record_tool_result(name, result)
+        return result
     try:
         arguments = json.loads(arguments_json or "{}")
     except json.JSONDecodeError as exc:
-        return {"ok": False, "error": f"Invalid JSON arguments: {exc}"}
+        result = {"ok": False, "error": f"Invalid JSON arguments: {exc}"}
+        if transcript is not None:
+            transcript.record_tool_call(name, arguments_json or "")
+            transcript.record_tool_result(name, result)
+        return result
+
+    if transcript is not None:
+        transcript.record_tool_call(name, arguments)
 
     try:
-        return to_json_safe(await handler(**arguments))
+        result = to_json_safe(await handler(**arguments))
     except Exception as exc:
         logger.exception("Tool %s failed", name)
-        return {"ok": False, "error": str(exc)}
+        result = {"ok": False, "error": str(exc)}
+    if transcript is not None:
+        transcript.record_tool_result(name, result)
+    return result
