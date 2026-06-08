@@ -22,11 +22,24 @@ import websockets
 from dotenv import load_dotenv
 
 from realtime_assistant.logging import console, logger
+from realtime_assistant.memory import SessionMemory, memory
+from realtime_assistant.models import DiscoverySession
 from realtime_assistant.prompts import SYSTEM_PROMPT, VOICE_MODE_INTRO
 from realtime_assistant.tools import TOOL_SCHEMAS, dispatch_tool
 
 REALTIME_MODEL = "gpt-4o-realtime-preview"
 REALTIME_URL = f"wss://api.openai.com/v1/realtime?model={REALTIME_MODEL}"
+REALTIME_RECONNECT_ATTEMPTS = 3
+REALTIME_RECONNECT_INITIAL_DELAY = 1.0
+REALTIME_RECONNECT_MAX_DELAY = 8.0
+
+TRANSIENT_REALTIME_ERRORS = (
+    websockets.ConnectionClosed,
+    ConnectionError,
+    EOFError,
+    OSError,
+    TimeoutError,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -55,6 +68,18 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=8000,
         help="Port for the web dashboard.",
+    )
+    parser.add_argument(
+        "--reconnect-attempts",
+        type=int,
+        default=REALTIME_RECONNECT_ATTEMPTS,
+        help="Number of times to retry a dropped Realtime WebSocket connection.",
+    )
+    parser.add_argument(
+        "--reconnect-delay",
+        type=float,
+        default=REALTIME_RECONNECT_INITIAL_DELAY,
+        help="Initial reconnect delay in seconds. Retries use bounded exponential backoff.",
     )
     return parser.parse_args()
 
@@ -91,27 +116,15 @@ async def main() -> None:
         console.print("💬 Text mode — type your message. Type quit to exit.")
 
     try:
-        async with connect_realtime(url, headers) as websocket:
-            await configure_session(websocket, voice_mode=args.voice)
-            logger.info("Realtime discovery session started. Type messages, or 'done' to generate stories.")
-
-            receiver_task = asyncio.create_task(receive_events(websocket))
-            if args.voice:
-                if mic_stream is None:
-                    raise RuntimeError("Voice mode requested but microphone stream was not initialized.")
-                sender_task = asyncio.create_task(voice_sender(websocket, mic_stream))
-            else:
-                sender_task = asyncio.create_task(send_user_input(websocket, args.prompts))
-
-            done, pending = await asyncio.wait(
-                {receiver_task, sender_task},
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            for task in pending:
-                task.cancel()
-            await asyncio.gather(*pending, return_exceptions=True)
-            for task in done:
-                task.result()
+        await run_realtime_session(
+            url,
+            headers,
+            voice_mode=args.voice,
+            scripted_prompts=args.prompts,
+            mic_stream=mic_stream,
+            reconnect_attempts=args.reconnect_attempts,
+            reconnect_initial_delay=args.reconnect_delay,
+        )
     finally:
         if dashboard_task is not None:
             dashboard_task.cancel()
@@ -131,6 +144,7 @@ def connect_realtime(url: str, headers: dict[str, str]) -> Any:
 async def configure_session(
     websocket: websockets.WebSocketClientProtocol,
     voice_mode: bool = False,
+    create_response: bool = True,
 ) -> None:
     instructions = SYSTEM_PROMPT
     session: dict[str, Any] = {
@@ -166,7 +180,154 @@ async def configure_session(
             }
         )
     )
-    await websocket.send(json.dumps({"type": "response.create"}))
+    if create_response:
+        await websocket.send(json.dumps({"type": "response.create"}))
+
+
+async def run_realtime_session(
+    url: str,
+    headers: dict[str, str],
+    *,
+    voice_mode: bool,
+    scripted_prompts: str | None,
+    mic_stream: Any = None,
+    reconnect_attempts: int = REALTIME_RECONNECT_ATTEMPTS,
+    reconnect_initial_delay: float = REALTIME_RECONNECT_INITIAL_DELAY,
+    reconnect_max_delay: float = REALTIME_RECONNECT_MAX_DELAY,
+    session_memory: SessionMemory = memory,
+) -> None:
+    retries_used = 0
+    max_delay = max(0.0, reconnect_max_delay)
+    delay = min(max(0.0, reconnect_initial_delay), max_delay)
+
+    while True:
+        try:
+            await run_single_realtime_connection(
+                url,
+                headers,
+                voice_mode=voice_mode,
+                scripted_prompts=scripted_prompts,
+                mic_stream=mic_stream,
+                session_memory=session_memory,
+                replay_context=retries_used > 0,
+            )
+            if retries_used:
+                console.print("[green]Realtime connection restored.[/green]")
+            return
+        except asyncio.CancelledError:
+            raise
+        except TRANSIENT_REALTIME_ERRORS as exc:
+            if retries_used >= reconnect_attempts:
+                console.print(
+                    "[red]Realtime connection dropped and reconnect attempts are exhausted.[/red]"
+                )
+                logger.warning("Realtime WebSocket reconnect attempts exhausted: %s", exc)
+                raise
+
+            retries_used += 1
+            console.print(
+                "[yellow]Realtime connection dropped. "
+                f"Reconnecting ({retries_used}/{reconnect_attempts}) in {delay:.1f}s...[/yellow]"
+            )
+            logger.info("Realtime WebSocket dropped; retrying in %.1fs: %s", delay, exc)
+            if delay > 0:
+                await asyncio.sleep(delay)
+            delay = min(max_delay, delay * 2 if delay else reconnect_initial_delay or 0.0)
+
+
+async def run_single_realtime_connection(
+    url: str,
+    headers: dict[str, str],
+    *,
+    voice_mode: bool,
+    scripted_prompts: str | None,
+    mic_stream: Any = None,
+    session_memory: SessionMemory = memory,
+    replay_context: bool = False,
+) -> None:
+    async with connect_realtime(url, headers) as websocket:
+        await configure_session(websocket, voice_mode=voice_mode, create_response=False)
+        if replay_context:
+            await replay_session_context(websocket, session_memory)
+        await websocket.send(json.dumps({"type": "response.create"}))
+        console.print("[green]Realtime connection established.[/green]")
+        logger.info("Realtime discovery session started. Type messages, or 'done' to generate stories.")
+
+        receiver_task = asyncio.create_task(receive_events(websocket))
+        if voice_mode:
+            if mic_stream is None:
+                raise RuntimeError("Voice mode requested but microphone stream was not initialized.")
+            sender_task = asyncio.create_task(voice_sender(websocket, mic_stream))
+        else:
+            sender_task = asyncio.create_task(send_user_input(websocket, scripted_prompts))
+
+        done, pending = await asyncio.wait(
+            {receiver_task, sender_task},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+
+        for task in done:
+            try:
+                task.result()
+            except asyncio.CancelledError:
+                raise
+            except TRANSIENT_REALTIME_ERRORS:
+                raise
+
+        if receiver_task in done and sender_task not in done:
+            raise ConnectionError("Realtime WebSocket closed before the user session ended.")
+
+
+async def replay_session_context(
+    websocket: websockets.WebSocketClientProtocol,
+    session_memory: SessionMemory = memory,
+) -> None:
+    context = build_session_context_message(session_memory.get_current_session())
+    if context is None:
+        return
+
+    await websocket.send(
+        json.dumps(
+            {
+                "type": "conversation.item.create",
+                "item": {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": context}],
+                },
+            }
+        )
+    )
+    console.print("[cyan]Replayed captured discovery context after reconnect.[/cyan]")
+
+
+def build_session_context_message(session: DiscoverySession) -> str | None:
+    if not session.requirements and not session.user_stories:
+        return None
+
+    lines = [
+        "Session continuity context after a Realtime WebSocket reconnect.",
+        "Use this as memory for the ongoing discovery conversation; do not treat it as a new user request.",
+        f"Discovery session: {session.session_id}",
+    ]
+
+    if session.requirements:
+        lines.append("Captured requirements:")
+        for requirement in session.requirements:
+            lines.append(f"- {requirement.id} [{requirement.category}]: {requirement.text}")
+
+    if session.user_stories:
+        lines.append("Generated user stories:")
+        for story in session.user_stories:
+            lines.append(
+                f"- {story.id} ({story.priority}, {story.story_points} pts): "
+                f"As a {story.as_a}, I want {story.i_want}, so that {story.so_that}."
+            )
+
+    return "\n".join(lines)
 
 
 async def send_user_input(
