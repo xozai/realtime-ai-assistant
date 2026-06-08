@@ -10,8 +10,8 @@ from realtime_assistant.tools import submit_stories_to_jira
 
 def setup_function() -> None:
     memory.clear_requirements()
-    memory.set_user_stories([])
-    memory.clarified_topics.clear()
+    memory.clear_user_stories()
+    memory.clear_clarified_topics()
 
 
 def make_story(story_id: str, title: str) -> UserStory:

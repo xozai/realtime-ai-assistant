@@ -127,7 +127,7 @@ async def ask_clarifying_question(topic: str, question: str) -> dict[str, Any]:
         "ok": True,
         "topic": topic,
         "question": question,
-        "clarified_topics": sorted(memory.clarified_topics),
+        "clarified_topics": memory.list_clarified_topics(),
     }
 
 

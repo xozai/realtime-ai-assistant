@@ -12,7 +12,7 @@ app = FastAPI(title="Discovery Assistant Dashboard")
 
 
 def _requirements_payload() -> list[dict[str, Any]]:
-    return [requirement.model_dump(mode="json") for requirement in memory.get_all_requirements()]
+    return [requirement.model_dump(mode="json") for requirement in memory.list_requirements()]
 
 
 def _stories_payload() -> list[dict[str, Any]]:
@@ -36,9 +36,9 @@ async def get_stories() -> list[dict[str, Any]]:
 
 @app.get("/api/session")
 async def get_session() -> dict[str, Any]:
-    session = memory.session
+    session = memory.get_current_session()
     return {
-        "requirement_count": len(memory.get_all_requirements()),
+        "requirement_count": len(memory.list_requirements()),
         "story_count": len(memory.list_user_stories()),
         "session_id": session.session_id,
         "started_at": session.started_at.isoformat(),
