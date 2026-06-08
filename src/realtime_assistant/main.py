@@ -26,6 +26,7 @@ from realtime_assistant.memory import SessionMemory, memory
 from realtime_assistant.models import DiscoverySession
 from realtime_assistant.prompts import SYSTEM_PROMPT, VOICE_MODE_INTRO
 from realtime_assistant.tools import TOOL_SCHEMAS, dispatch_tool
+from realtime_assistant.transcript import TranscriptWriter
 
 REALTIME_MODEL = "gpt-4o-realtime-preview"
 REALTIME_URL = f"wss://api.openai.com/v1/realtime?model={REALTIME_MODEL}"
@@ -81,7 +82,24 @@ def parse_args() -> argparse.Namespace:
         default=REALTIME_RECONNECT_INITIAL_DELAY,
         help="Initial reconnect delay in seconds. Retries use bounded exponential backoff.",
     )
+    parser.add_argument(
+        "--no-transcript",
+        action="store_true",
+        help="Disable writing conversation transcript files.",
+    )
     return parser.parse_args()
+
+
+def create_transcript_writer(
+    *,
+    enabled: bool,
+    output_dir: Path | str | None = None,
+) -> TranscriptWriter | None:
+    if not enabled:
+        return None
+    if output_dir is None:
+        return TranscriptWriter(memory.get_current_session())
+    return TranscriptWriter(memory.get_current_session(), output_dir=output_dir)
 
 
 async def main() -> None:
@@ -97,6 +115,9 @@ async def main() -> None:
         "Authorization": f"Bearer {api_key}",
         "OpenAI-Beta": "realtime=v1",
     }
+    transcript = create_transcript_writer(enabled=not args.no_transcript)
+    if transcript is not None:
+        console.print(f"📝 Transcript: {transcript.text_path}")
 
     dashboard_task: asyncio.Task[None] | None = None
     if not args.no_dashboard:
@@ -124,6 +145,7 @@ async def main() -> None:
             mic_stream=mic_stream,
             reconnect_attempts=args.reconnect_attempts,
             reconnect_initial_delay=args.reconnect_delay,
+            transcript=transcript,
         )
     finally:
         if dashboard_task is not None:
@@ -195,6 +217,7 @@ async def run_realtime_session(
     reconnect_initial_delay: float = REALTIME_RECONNECT_INITIAL_DELAY,
     reconnect_max_delay: float = REALTIME_RECONNECT_MAX_DELAY,
     session_memory: SessionMemory = memory,
+    transcript: TranscriptWriter | None = None,
 ) -> None:
     retries_used = 0
     max_delay = max(0.0, reconnect_max_delay)
@@ -210,6 +233,7 @@ async def run_realtime_session(
                 mic_stream=mic_stream,
                 session_memory=session_memory,
                 replay_context=retries_used > 0,
+                transcript=transcript,
             )
             if retries_used:
                 console.print("[green]Realtime connection restored.[/green]")
@@ -244,6 +268,7 @@ async def run_single_realtime_connection(
     mic_stream: Any = None,
     session_memory: SessionMemory = memory,
     replay_context: bool = False,
+    transcript: TranscriptWriter | None = None,
 ) -> None:
     async with connect_realtime(url, headers) as websocket:
         await configure_session(websocket, voice_mode=voice_mode, create_response=False)
@@ -253,13 +278,13 @@ async def run_single_realtime_connection(
         console.print("[green]Realtime connection established.[/green]")
         logger.info("Realtime discovery session started. Type messages, or 'done' to generate stories.")
 
-        receiver_task = asyncio.create_task(receive_events(websocket))
+        receiver_task = asyncio.create_task(receive_events(websocket, transcript))
         if voice_mode:
             if mic_stream is None:
                 raise RuntimeError("Voice mode requested but microphone stream was not initialized.")
             sender_task = asyncio.create_task(voice_sender(websocket, mic_stream))
         else:
-            sender_task = asyncio.create_task(send_user_input(websocket, scripted_prompts))
+            sender_task = asyncio.create_task(send_user_input(websocket, scripted_prompts, transcript))
 
         done, pending = await asyncio.wait(
             {receiver_task, sender_task},
@@ -333,11 +358,12 @@ def build_session_context_message(session: DiscoverySession) -> str | None:
 async def send_user_input(
     websocket: websockets.WebSocketClientProtocol,
     scripted_prompts: str | None,
+    transcript: TranscriptWriter | None = None,
 ) -> None:
     if scripted_prompts:
         prompts = [prompt.strip() for prompt in scripted_prompts.split("|") if prompt.strip()]
         for prompt in prompts:
-            await send_text_message(websocket, prompt)
+            await send_text_message(websocket, prompt, transcript)
             await asyncio.sleep(0.2)
         return
 
@@ -345,12 +371,18 @@ async def send_user_input(
         text = await asyncio.to_thread(input, "\nYou: ")
         if not text.strip():
             continue
-        await send_text_message(websocket, text)
+        await send_text_message(websocket, text, transcript)
         if text.strip().lower() in {"quit", "exit"}:
             return
 
 
-async def send_text_message(websocket: websockets.WebSocketClientProtocol, text: str) -> None:
+async def send_text_message(
+    websocket: websockets.WebSocketClientProtocol,
+    text: str,
+    transcript: TranscriptWriter | None = None,
+) -> None:
+    if transcript is not None:
+        transcript.record_user_message(text)
     await websocket.send(
         json.dumps(
             {
@@ -382,7 +414,10 @@ async def voice_sender(
         )
 
 
-async def receive_events(websocket: websockets.WebSocketClientProtocol) -> None:
+async def receive_events(
+    websocket: websockets.WebSocketClientProtocol,
+    transcript: TranscriptWriter | None = None,
+) -> None:
     async for raw_event in websocket:
         try:
             event = json.loads(raw_event)
@@ -396,38 +431,60 @@ async def receive_events(websocket: websockets.WebSocketClientProtocol) -> None:
             continue
 
         if event_type in {"response.text.delta", "response.output_text.delta"}:
-            console.print(event.get("delta", ""), end="")
+            delta = event.get("delta", "")
+            console.print(delta, end="")
+            if transcript is not None:
+                transcript.record_assistant_delta(delta)
             continue
 
         if event_type in {"response.text.done", "response.output_text.done"}:
             console.print()
+            if transcript is not None:
+                transcript.flush_assistant_message()
             continue
 
         if event_type == "response.audio_transcript.delta":
-            console.print(event.get("delta", ""), end="")
+            delta = event.get("delta", "")
+            console.print(delta, end="")
+            if transcript is not None:
+                transcript.record_assistant_delta(delta)
+            continue
+
+        if event_type == "response.audio_transcript.done":
+            if transcript is not None:
+                transcript.flush_assistant_message()
+            continue
+
+        if event_type == "conversation.item.input_audio_transcription.completed":
+            if transcript is not None and event.get("transcript"):
+                transcript.record_user_message(event["transcript"])
             continue
 
         if event_type == "response.function_call_arguments.done":
-            await handle_function_call(websocket, event)
+            await handle_function_call(websocket, event, transcript)
             continue
 
         if event_type == "response.done":
-            await handle_completed_response(websocket, event)
+            if transcript is not None:
+                transcript.flush_assistant_message()
+            await handle_completed_response(websocket, event, transcript)
 
 
 async def handle_completed_response(
     websocket: websockets.WebSocketClientProtocol,
     event: dict[str, Any],
+    transcript: TranscriptWriter | None = None,
 ) -> None:
     response = event.get("response", {})
     for output in response.get("output", []):
         if output.get("type") == "function_call":
-            await handle_function_call(websocket, output)
+            await handle_function_call(websocket, output, transcript)
 
 
 async def handle_function_call(
     websocket: websockets.WebSocketClientProtocol,
     event: dict[str, Any],
+    transcript: TranscriptWriter | None = None,
 ) -> None:
     name = event.get("name")
     call_id = event.get("call_id")
@@ -436,7 +493,7 @@ async def handle_function_call(
         return
 
     logger.info("Calling tool: %s", name)
-    result = await dispatch_tool(name, arguments)
+    result = await dispatch_tool(name, arguments, transcript)
     await websocket.send(
         json.dumps(
             {

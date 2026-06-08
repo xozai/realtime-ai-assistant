@@ -82,7 +82,9 @@ async def test_realtime_session_reconnects_and_replays_context(monkeypatch: pyte
     async def fake_send_user_input(
         websocket: FakeWebSocket,
         scripted_prompts: str | None,
+        transcript: object | None = None,
     ) -> None:
+        assert transcript is None
         if websocket.close_on_receive:
             await asyncio.Future()
 
@@ -134,6 +136,7 @@ async def test_realtime_session_gives_up_after_reconnect_attempts(
     async def never_finishes(
         _websocket: FakeWebSocket,
         _scripted_prompts: str | None,
+        _transcript: object | None = None,
     ) -> None:
         await asyncio.Future()
 
