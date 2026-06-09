@@ -160,3 +160,38 @@ async def test_realtime_session_gives_up_after_reconnect_attempts(
 
     assert any("Reconnect" in message or "Reconnecting" in message for message in console_messages)
     assert any("attempts are exhausted" in message for message in console_messages)
+
+
+@pytest.mark.asyncio
+async def test_realtime_session_uses_bounded_exponential_backoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = 0
+    sleeps: list[float] = []
+
+    async def always_drops(*_args: object, **_kwargs: object) -> None:
+        nonlocal attempts
+        attempts += 1
+        raise ConnectionError("temporary network drop")
+
+    async def fake_sleep(delay: float) -> None:
+        sleeps.append(delay)
+
+    monkeypatch.setattr(main, "run_single_realtime_connection", always_drops)
+    monkeypatch.setattr(main.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(main, "console", SimpleNamespace(print=lambda *_args, **_kwargs: None))
+
+    with pytest.raises(ConnectionError):
+        await main.run_realtime_session(
+            "wss://example.test/realtime",
+            {"Authorization": "Bearer test"},
+            voice_mode=False,
+            scripted_prompts=None,
+            reconnect_attempts=3,
+            reconnect_initial_delay=1.0,
+            reconnect_max_delay=2.5,
+            session_memory=populated_memory(),
+        )
+
+    assert attempts == 4
+    assert sleeps == [1.0, 2.0, 2.5]

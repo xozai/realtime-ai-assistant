@@ -83,6 +83,12 @@ def parse_args() -> argparse.Namespace:
         help="Initial reconnect delay in seconds. Retries use bounded exponential backoff.",
     )
     parser.add_argument(
+        "--reconnect-max-delay",
+        type=float,
+        default=REALTIME_RECONNECT_MAX_DELAY,
+        help="Maximum reconnect delay in seconds.",
+    )
+    parser.add_argument(
         "--no-transcript",
         action="store_true",
         help="Disable writing conversation transcript files.",
@@ -145,6 +151,7 @@ async def main() -> None:
             mic_stream=mic_stream,
             reconnect_attempts=args.reconnect_attempts,
             reconnect_initial_delay=args.reconnect_delay,
+            reconnect_max_delay=args.reconnect_max_delay,
             transcript=transcript,
         )
     finally:
