@@ -8,6 +8,7 @@ from uuid import uuid4
 from pydantic import BaseModel, Field, field_validator
 
 RequirementCategory = Literal["functional", "non-functional", "constraint", "assumption"]
+RequirementConfidence = Literal["high", "medium", "low"]
 Priority = Literal["must-have", "should-have", "could-have", "wont-have"]
 CoverageStatus = Literal["covered", "uncovered", "no-stories-yet"]
 
@@ -16,6 +17,7 @@ class Requirement(BaseModel):
     id: str = Field(default_factory=lambda: f"REQ-{uuid4().hex[:8].upper()}")
     text: str
     category: RequirementCategory
+    confidence: RequirementConfidence = "medium"
     captured_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -77,6 +79,7 @@ class CoverageReport(BaseModel):
     items: list[RequirementCoverage] = Field(default_factory=list)
     covered_count: int = 0
     uncovered_count: int = 0
+    low_confidence_count: int = 0
     coverage_pct: float = 0.0
 
 

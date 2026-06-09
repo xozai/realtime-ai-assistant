@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pydantic import TypeAdapter
 
-from realtime_assistant.models import CoverageReport, SessionSummary, UserStory
+from realtime_assistant.models import CoverageReport, Requirement, SessionSummary, UserStory
 
 __all__ = [
     "EXPORTS_DIR",
@@ -65,12 +65,20 @@ def export_to_json(
     stories: list[UserStory],
     path: Path | str = JSON_PATH,
     *,
+    requirements: list[Requirement] | None = None,
     coverage_report: CoverageReport | None = None,
 ) -> Path:
     """Write user stories as JSON and return the output path."""
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(user_stories_to_json(stories, coverage_report=coverage_report), encoding="utf-8")
+    output_path.write_text(
+        user_stories_to_json(
+            stories,
+            requirements=requirements,
+            coverage_report=coverage_report,
+        ),
+        encoding="utf-8",
+    )
     return output_path
 
 
@@ -78,6 +86,7 @@ def export_to_markdown(
     stories: list[UserStory],
     path: Path | str = MARKDOWN_PATH,
     *,
+    requirements: list[Requirement] | None = None,
     summary: SessionSummary | None = None,
     coverage_report: CoverageReport | None = None,
 ) -> Path:
@@ -85,7 +94,12 @@ def export_to_markdown(
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        format_user_stories_markdown(stories, summary=summary, coverage_report=coverage_report),
+        format_user_stories_markdown(
+            stories,
+            requirements=requirements,
+            summary=summary,
+            coverage_report=coverage_report,
+        ),
         encoding="utf-8",
     )
     return output_path
@@ -101,6 +115,7 @@ def export_user_stories(
     export_name: str = DEFAULT_EXPORT_NAME,
     session_id: str | None = None,
     summary: SessionSummary | None = None,
+    requirements: list[Requirement] | None = None,
 ) -> list[Path]:
     """Export user stories to JSON, Markdown, or both.
 
@@ -135,20 +150,35 @@ def export_user_stories(
 
     paths: list[Path] = []
     if writes_json:
-        paths.append(export_to_json(stories, output_json_path))
+        paths.append(
+            export_to_json(stories, output_json_path, requirements=requirements)
+        )
     if writes_markdown:
-        paths.append(export_to_markdown(stories, output_markdown_path, summary=summary))
+        paths.append(
+            export_to_markdown(
+                stories,
+                output_markdown_path,
+                requirements=requirements,
+                summary=summary,
+            )
+        )
     return paths
 
 
 def user_stories_to_json(
     stories: list[UserStory],
     *,
+    requirements: list[Requirement] | None = None,
     coverage_report: CoverageReport | None = None,
 ) -> str:
     """Format user stories as the public JSON export payload."""
     payload = TypeAdapter(list[UserStory]).dump_python(stories, mode="json")
     data: dict = {"user_stories": payload}
+    if requirements is not None:
+        data["requirements"] = TypeAdapter(list[Requirement]).dump_python(
+            requirements,
+            mode="json",
+        )
     if coverage_report is not None:
         data["coverage_report"] = coverage_report.model_dump(mode="json")
     return json.dumps(data, indent=2)
@@ -204,6 +234,7 @@ def format_user_story_markdown(story: UserStory) -> str:
 def format_user_stories_markdown(
     stories: list[UserStory],
     *,
+    requirements: list[Requirement] | None = None,
     summary: SessionSummary | None = None,
     coverage_report: CoverageReport | None = None,
 ) -> str:
@@ -212,6 +243,19 @@ def format_user_stories_markdown(
 
     if summary is not None:
         lines.append(format_session_summary_markdown(summary))
+        lines.append("")
+
+    if requirements is not None:
+        lines.append("## Requirements")
+        lines.append("")
+        if requirements:
+            for req in requirements:
+                lines.append(
+                    f"- **{req.id}** [{req.category}] "
+                    f"(confidence: {req.confidence}): {req.text}"
+                )
+        else:
+            lines.append("_No requirements captured yet._")
         lines.append("")
 
     if not stories:
