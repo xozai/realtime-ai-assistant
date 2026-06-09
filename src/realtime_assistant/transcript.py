@@ -27,9 +27,11 @@ class TranscriptWriter:
         output_path.mkdir(parents=True, exist_ok=True)
 
         filename = self.started_at.strftime("%Y-%m-%d_%H-%M-%S")
+        filename = f"{filename}_{self.session_id}"
         self.text_path = output_path / f"{filename}.txt"
         self.jsonl_path = output_path / f"{filename}.jsonl"
         self._assistant_buffer: list[str] = []
+        self._closed = False
 
         header = [
             "Conversation Transcript",
@@ -46,6 +48,16 @@ class TranscriptWriter:
                 "started_at": self.started_at.isoformat(),
             }
         )
+
+    def close(self) -> None:
+        """Flush pending content and record session completion once."""
+        if self._closed:
+            return
+        self.flush_assistant_message()
+        ended_at = datetime.now(UTC).isoformat()
+        self._append_text("Session End", ended_at)
+        self._write_jsonl({"type": "session_ended", "ended_at": ended_at})
+        self._closed = True
 
     def record_user_message(self, text: str) -> None:
         self.flush_assistant_message()
@@ -71,7 +83,10 @@ class TranscriptWriter:
 
     def record_tool_result(self, name: str, result: Any) -> None:
         self._append_text("Tool Result", f"{name} {self._format_json(result)}")
-        self._write_jsonl({"type": "tool_result", "name": name, "result": result})
+        status = self._result_status(result)
+        self._write_jsonl(
+            {"type": "tool_result", "name": name, "status": status, "result": result}
+        )
 
     def _append_text(self, label: str, value: str) -> None:
         timestamp = datetime.now(UTC).isoformat()
@@ -90,3 +105,9 @@ class TranscriptWriter:
     @staticmethod
     def _format_json(value: Any) -> str:
         return json.dumps(value, indent=2, sort_keys=True)
+
+    @staticmethod
+    def _result_status(result: Any) -> str:
+        if isinstance(result, dict) and result.get("ok") is False:
+            return "error"
+        return "ok"

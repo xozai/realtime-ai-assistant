@@ -155,6 +155,8 @@ async def main() -> None:
             transcript=transcript,
         )
     finally:
+        if transcript is not None:
+            transcript.close()
         if dashboard_task is not None:
             dashboard_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -230,40 +232,44 @@ async def run_realtime_session(
     max_delay = max(0.0, reconnect_max_delay)
     delay = min(max(0.0, reconnect_initial_delay), max_delay)
 
-    while True:
-        try:
-            await run_single_realtime_connection(
-                url,
-                headers,
-                voice_mode=voice_mode,
-                scripted_prompts=scripted_prompts,
-                mic_stream=mic_stream,
-                session_memory=session_memory,
-                replay_context=retries_used > 0,
-                transcript=transcript,
-            )
-            if retries_used:
-                console.print("[green]Realtime connection restored.[/green]")
-            return
-        except asyncio.CancelledError:
-            raise
-        except TRANSIENT_REALTIME_ERRORS as exc:
-            if retries_used >= reconnect_attempts:
-                console.print(
-                    "[red]Realtime connection dropped and reconnect attempts are exhausted.[/red]"
+    try:
+        while True:
+            try:
+                await run_single_realtime_connection(
+                    url,
+                    headers,
+                    voice_mode=voice_mode,
+                    scripted_prompts=scripted_prompts,
+                    mic_stream=mic_stream,
+                    session_memory=session_memory,
+                    replay_context=retries_used > 0,
+                    transcript=transcript,
                 )
-                logger.warning("Realtime WebSocket reconnect attempts exhausted: %s", exc)
+                if retries_used:
+                    console.print("[green]Realtime connection restored.[/green]")
+                return
+            except asyncio.CancelledError:
                 raise
+            except TRANSIENT_REALTIME_ERRORS as exc:
+                if retries_used >= reconnect_attempts:
+                    console.print(
+                        "[red]Realtime connection dropped and reconnect attempts are exhausted.[/red]"
+                    )
+                    logger.warning("Realtime WebSocket reconnect attempts exhausted: %s", exc)
+                    raise
 
-            retries_used += 1
-            console.print(
-                "[yellow]Realtime connection dropped. "
-                f"Reconnecting ({retries_used}/{reconnect_attempts}) in {delay:.1f}s...[/yellow]"
-            )
-            logger.info("Realtime WebSocket dropped; retrying in %.1fs: %s", delay, exc)
-            if delay > 0:
-                await asyncio.sleep(delay)
-            delay = min(max_delay, delay * 2 if delay else reconnect_initial_delay or 0.0)
+                retries_used += 1
+                console.print(
+                    "[yellow]Realtime connection dropped. "
+                    f"Reconnecting ({retries_used}/{reconnect_attempts}) in {delay:.1f}s...[/yellow]"
+                )
+                logger.info("Realtime WebSocket dropped; retrying in %.1fs: %s", delay, exc)
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                delay = min(max_delay, delay * 2 if delay else reconnect_initial_delay or 0.0)
+    finally:
+        if transcript is not None:
+            transcript.close()
 
 
 async def run_single_realtime_connection(
