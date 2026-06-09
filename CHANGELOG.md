@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.11.0...v0.12.0) (2026-06-09)
+
+
+### Features
+
+* session token and cost tracking ([#24](https://github.com/xozai/realtime-ai-assistant/issues/24)) ([#54](https://github.com/xozai/realtime-ai-assistant/issues/54)) ([78523db](https://github.com/xozai/realtime-ai-assistant/commit/78523dba501dc92ed771c711cf4787adf09aa59a))
+
 ## [0.11.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.10.1...v0.11.0) (2026-06-09)
 
 
