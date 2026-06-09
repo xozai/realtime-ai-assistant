@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "realtime-ai-assistant"
-version = "0.2.0"
+version = "0.3.0"
 description = "Realtime AI assistant for software discovery calls and Agile user story generation."
 readme = "README.md"
 license = { text = "MIT" }
