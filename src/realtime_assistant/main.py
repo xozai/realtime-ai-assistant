@@ -22,7 +22,7 @@ import websockets
 from dotenv import load_dotenv
 
 from realtime_assistant.logging import console, logger
-from realtime_assistant.memory import SessionMemory, memory
+from realtime_assistant.memory import SESSIONS_DIR, SessionMemory, memory
 from realtime_assistant.models import DiscoverySession
 from realtime_assistant.prompts import SYSTEM_PROMPT, VOICE_MODE_INTRO
 from realtime_assistant.tools import TOOL_SCHEMAS, dispatch_tool
@@ -93,7 +93,30 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable writing conversation transcript files.",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--resume",
+        help="Load an existing discovery session from sessions/<session_id>.json.",
+    )
+    parser.add_argument(
+        "--session-id",
+        help="Start a new discovery session with a known session ID.",
+    )
+    args = parser.parse_args()
+    if args.resume and args.session_id:
+        parser.error("--resume and --session-id cannot be used together.")
+    return args
+
+
+def initialize_session_from_args(args: argparse.Namespace) -> DiscoverySession:
+    if args.resume:
+        session = memory.load_session(args.resume, SESSIONS_DIR)
+        console.print(f"↩️  Resumed session: {session.session_id}")
+        return session
+    if args.session_id:
+        session = memory.create_session(DiscoverySession(session_id=args.session_id))
+        console.print(f"🧭 Session ID: {session.session_id}")
+        return session
+    return memory.get_current_session()
 
 
 def create_transcript_writer(
@@ -110,6 +133,7 @@ def create_transcript_writer(
 
 async def main() -> None:
     args = parse_args()
+    initialize_session_from_args(args)
 
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
@@ -155,6 +179,8 @@ async def main() -> None:
             transcript=transcript,
         )
     finally:
+        session_path = memory.save_session(SESSIONS_DIR)
+        console.print(f"💾 Session saved: {session_path}")
         if transcript is not None:
             transcript.close()
         if dashboard_task is not None:

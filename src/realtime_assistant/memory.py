@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from realtime_assistant.models import (
     DiscoverySession,
     Priority,
@@ -8,7 +11,11 @@ from realtime_assistant.models import (
     UserStory,
 )
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+SESSIONS_DIR = PROJECT_ROOT / "sessions"
+
 __all__ = [
+    "SESSIONS_DIR",
     "SessionMemory",
     "add_requirement",
     "add_user_story",
@@ -25,11 +32,13 @@ __all__ = [
     "get_user_story",
     "list_requirements",
     "list_user_stories",
+    "load_session",
     "memory",
     "remove_requirement",
     "remove_user_story",
     "replace_user_stories",
     "reset_session",
+    "save_session",
     "set_user_stories",
     "update_requirement",
     "update_user_story",
@@ -65,6 +74,60 @@ class SessionMemory:
     def dump_session(self, *, mode: str = "json") -> dict:
         """Serialize the active session for dashboards, tools, or tests."""
         return self.session.model_dump(mode=mode)
+
+    def dump_persisted_session(self) -> dict:
+        """Serialize session memory to the stable on-disk JSON shape."""
+        return {
+            "session": self.session.model_dump(mode="json"),
+            "clarified_topics": self.list_clarified_topics(),
+        }
+
+    def save_session(self, output_dir: Path | str = SESSIONS_DIR) -> Path:
+        """Persist the active discovery session and clarified topic markers."""
+        path = self._session_path(self.session.session_id, output_dir)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = self.dump_persisted_session()
+        path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def load_session(
+        self,
+        session_id: str,
+        input_dir: Path | str = SESSIONS_DIR,
+    ) -> DiscoverySession:
+        """Load a persisted discovery session and make it active."""
+        path = self._session_path(session_id, input_dir)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError(f"Session file {path} must contain a JSON object.")
+
+        session_payload = payload.get("session")
+        if not isinstance(session_payload, dict):
+            raise ValueError(f"Session file {path} is missing a session object.")
+
+        session = DiscoverySession.model_validate(session_payload)
+        clarified_topics = payload.get("clarified_topics", [])
+        if not isinstance(clarified_topics, list):
+            raise ValueError(f"Session file {path} has invalid clarified_topics.")
+
+        self.create_session(session)
+        for topic in clarified_topics:
+            if not isinstance(topic, str):
+                raise ValueError(f"Session file {path} has a non-string clarified topic.")
+            self.mark_clarified(topic)
+        return self.session
+
+    @staticmethod
+    def _session_path(session_id: str, directory: Path | str) -> Path:
+        normalized = session_id.strip()
+        if not normalized:
+            raise ValueError("session_id cannot be blank.")
+        if Path(normalized).name != normalized:
+            raise ValueError("session_id must be a filename-safe ID, not a path.")
+        return Path(directory) / f"{normalized}.json"
 
     def create_requirement(self, text: str, category: RequirementCategory) -> Requirement:
         """Create and store a requirement from raw text and category."""
@@ -270,6 +333,19 @@ def reset_session() -> DiscoverySession:
 def dump_session(*, mode: str = "json") -> dict:
     """Serialize the active singleton discovery session."""
     return memory.dump_session(mode=mode)
+
+
+def save_session(output_dir: Path | str = SESSIONS_DIR) -> Path:
+    """Persist the active singleton discovery session."""
+    return memory.save_session(output_dir)
+
+
+def load_session(
+    session_id: str,
+    input_dir: Path | str = SESSIONS_DIR,
+) -> DiscoverySession:
+    """Load a persisted discovery session into singleton memory."""
+    return memory.load_session(session_id, input_dir)
 
 
 def add_requirement(requirement: Requirement) -> Requirement:
