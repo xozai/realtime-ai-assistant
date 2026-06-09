@@ -17,7 +17,7 @@ Inspired by [`disler/poc-realtime-ai-assistant`](https://github.com/disler/poc-r
 | JSON + Markdown export | ✅ Shipped |
 | Jira integration (`submit_stories_to_jira`) | ✅ Shipped |
 | Voice input mode (`--voice`, server VAD) | ✅ Shipped |
-| Web dashboard (FastAPI, dark theme, live refresh) | ✅ Shipped |
+| Web dashboard (FastAPI, dark theme, live refresh, inline editing) | ✅ Shipped |
 | Conversation transcript | 🔜 [#1](https://github.com/xozai/realtime-ai-assistant/issues/1) P1 |
 | Session resume | ✅ Shipped |
 | Multi-product support | 🔜 [#3](https://github.com/xozai/realtime-ai-assistant/issues/3) P2 |
@@ -88,7 +88,7 @@ python src/realtime_assistant/main.py --prompts "We need a task manager|Users ne
 
 ## Web Dashboard
 
-The FastAPI dashboard runs in the same process and shows live requirements and user stories with a dark-theme two-panel layout. Auto-refreshes every 3 seconds.
+The FastAPI dashboard runs in the same process and shows live requirements and user stories with a dark-theme two-panel layout. Auto-refreshes every 3 seconds and supports inline requirement/story edits without restarting the session.
 
 Open: **http://localhost:8000**
 
@@ -106,12 +106,15 @@ python src/realtime_assistant/main.py --dashboard-port 9000
 |---|---|---|
 | `GET` | `/` | Inline dark-theme SPA |
 | `GET` | `/api/requirements` | All captured requirements |
+| `PATCH` | `/api/requirements/{requirement_id}` | Update requirement text/category |
+| `DELETE` | `/api/requirements/{requirement_id}` | Delete one requirement |
 | `GET` | `/api/stories` | All generated user stories |
+| `PATCH` | `/api/stories/{story_id}` | Update generated story fields, acceptance criteria, priority, and points |
 | `GET` | `/api/session` | Session ID, start time, counts |
 | `POST` | `/api/export` | Export stories to JSON + Markdown |
 | `POST` | `/api/jira/{project_key}` | Submit stories to Jira |
 
-The dashboard has **Export** and **Submit to Jira** buttons that call these endpoints directly from the browser.
+The dashboard has **Edit**, **Delete**, **Export**, and **Submit to Jira** controls that call these endpoints directly from the browser. Requirement category, story priority, and story point values are validated by the same Pydantic models used by the assistant memory.
 
 ---
 
