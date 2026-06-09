@@ -141,10 +141,17 @@ def export_user_stories(
     return paths
 
 
-def user_stories_to_json(stories: list[UserStory]) -> str:
+def user_stories_to_json(
+    stories: list[UserStory],
+    *,
+    coverage_report: CoverageReport | None = None,
+) -> str:
     """Format user stories as the public JSON export payload."""
     payload = TypeAdapter(list[UserStory]).dump_python(stories, mode="json")
-    return json.dumps({"user_stories": payload}, indent=2)
+    data: dict = {"user_stories": payload}
+    if coverage_report is not None:
+        data["coverage_report"] = coverage_report.model_dump(mode="json")
+    return json.dumps(data, indent=2)
 
 
 def format_session_summary_markdown(summary: SessionSummary) -> str:
@@ -198,6 +205,7 @@ def format_user_stories_markdown(
     stories: list[UserStory],
     *,
     summary: SessionSummary | None = None,
+    coverage_report: CoverageReport | None = None,
 ) -> str:
     """Format a collection of user stories as a complete Markdown document."""
     lines = ["# User Stories", ""]
@@ -212,6 +220,19 @@ def format_user_stories_markdown(
 
     for story in stories:
         lines.append(format_user_story_markdown(story))
+        lines.append("")
+
+    if coverage_report is not None:
+        lines.append("## Coverage Report")
+        lines.append("")
+        lines.append(f"Coverage: {coverage_report.coverage_pct:.0f}% ({coverage_report.covered_count}/{coverage_report.covered_count + coverage_report.uncovered_count} requirements)")
+        uncovered = [item for item in coverage_report.items if item.status != "covered"]
+        if uncovered:
+            lines.append("")
+            lines.append("### Uncovered Requirements")
+            lines.append("")
+            for item in uncovered:
+                lines.append(f"- **{item.requirement_id}** [{item.category}]: {item.text}")
         lines.append("")
 
     return "\n".join(lines)
