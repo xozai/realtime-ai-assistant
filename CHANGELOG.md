@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.13.0...v0.14.0) (2026-06-09)
+
+
+### Features
+
+* multi-product support with isolated sessions per project ([#3](https://github.com/xozai/realtime-ai-assistant/issues/3)) ([#58](https://github.com/xozai/realtime-ai-assistant/issues/58)) ([8dfa4fd](https://github.com/xozai/realtime-ai-assistant/commit/8dfa4fda6b36f4c45fce2d214e389a58670de767))
+
 ## [0.13.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.12.0...v0.13.0) (2026-06-09)
 
 
