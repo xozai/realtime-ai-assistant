@@ -138,6 +138,14 @@ async def post_generate_summary() -> dict[str, Any]:
     return await generate_session_summary()
 
 
+@app.get("/api/coverage")
+async def get_coverage() -> dict[str, Any]:
+    session = memory.get_current_session()
+    if session.coverage_report is None:
+        return {"coverage_report": None}
+    return {"coverage_report": session.coverage_report.model_dump(mode="json")}
+
+
 @app.post("/api/jira/{project_key}")
 async def post_jira(project_key: str) -> dict[str, Any]:
     return await submit_stories_to_jira(project_key)
@@ -415,6 +423,8 @@ DASHBOARD_HTML = """<!doctype html>
       <h2>Executive Summary</h2>
       <div class="card" id="summary-card"></div>
     </section>
+    <section id="coverage-section" style="display:none">
+    </section>
     <section>
       <h2>Requirements</h2>
       <div class="list" id="requirements"></div>
@@ -624,24 +634,45 @@ DASHBOARD_HTML = """<!doctype html>
       `;
     }
 
+    function renderCoverage(report) {
+      // innerHTML is safe here: all dynamic values are passed through escapeHtml()
+      // which is the same pattern used by renderRequirements/renderStories throughout.
+      const section = document.querySelector("#coverage-section");
+      if (!section) return;
+      if (!report) { section.style.display = "none"; return; }
+      section.style.display = "";
+      const pct = report.coverage_pct ?? 0;
+      const covered = report.covered_count ?? 0;
+      const total = (report.items || []).length;
+      const uncovered = (report.items || []).filter((i) => i.status === "uncovered");
+      section.innerHTML = `
+        <h2>Coverage</h2>
+        <p><strong>${pct}%</strong> (${covered}/${total} requirements covered)</p>
+        ${uncovered.length ? `<p class="muted">Uncovered: ${uncovered.map((i) => `<span class="badge">${escapeHtml(i.requirement_id)}</span>`).join(" ")}</p>` : "<p>All requirements covered ✓</p>"}
+      `;
+    }
+
     async function refreshDashboard() {
       if (activeEdit) return;
-      const [requirementsResponse, storiesResponse, sessionResponse, summaryResponse] = await Promise.all([
+      const [requirementsResponse, storiesResponse, sessionResponse, summaryResponse, coverageResponse] = await Promise.all([
         fetch("/api/requirements"),
         fetch("/api/stories"),
         fetch("/api/session"),
         fetch("/api/summary"),
+        fetch("/api/coverage"),
       ]);
-      const [requirements, stories, session, summaryPayload] = await Promise.all([
+      const [requirements, stories, session, summaryPayload, coveragePayload] = await Promise.all([
         requirementsResponse.json(),
         storiesResponse.json(),
         sessionResponse.json(),
         summaryResponse.json(),
+        coverageResponse.json(),
       ]);
       renderRequirements(requirements);
       renderStories(stories);
       sessionMeta.textContent = `${session.session_id} · Started ${formatDate(session.started_at)}`;
       renderSummary(summaryPayload.summary);
+      renderCoverage(coveragePayload.coverage_report);
     }
 
     requirementList.addEventListener("click", async (event) => {
