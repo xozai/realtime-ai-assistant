@@ -6,6 +6,7 @@ from typing import Literal
 
 from openai import OpenAI
 
+from realtime_assistant.memory import memory
 from realtime_assistant.models import (
     DiscoverySession,
     Requirement,
@@ -59,6 +60,7 @@ def generate_user_stories(requirements: list[Requirement], model: str = "gpt-4o"
             messages=messages,
             response_format=UserStorySet,
         )
+        _accumulate_chat_completion_usage(completion)
         parsed = completion.choices[0].message.parsed
         if parsed is None:
             raise RuntimeError("Structured output parser returned no parsed content.")
@@ -77,6 +79,7 @@ def generate_user_stories(requirements: list[Requirement], model: str = "gpt-4o"
                 },
             },
         )
+        _accumulate_chat_completion_usage(completion)
         content = completion.choices[0].message.content
         if content is None:
             raise RuntimeError("Story generation returned no content.")
@@ -192,3 +195,24 @@ def generate_session_summary(
         if content is None:
             raise RuntimeError("Summary generation returned no content.")
         return SessionSummary.model_validate(json.loads(content))
+
+
+def _accumulate_chat_completion_usage(completion: object) -> None:
+    usage = getattr(completion, "usage", None)
+    if usage is None:
+        return
+    input_tokens = _usage_value(usage, "input_tokens", "prompt_tokens")
+    output_tokens = _usage_value(usage, "output_tokens", "completion_tokens")
+    if input_tokens or output_tokens:
+        memory.accumulate_chat_usage(input_tokens, output_tokens)
+
+
+def _usage_value(usage: object, *keys: str) -> int:
+    for key in keys:
+        if isinstance(usage, dict):
+            value = usage.get(key)
+        else:
+            value = getattr(usage, key, None)
+        if isinstance(value, int):
+            return value
+    return 0

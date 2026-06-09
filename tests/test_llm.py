@@ -3,11 +3,13 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from realtime_assistant import llm
 from realtime_assistant.llm import (
     score_requirement_confidence,
     validate_story_source_requirement_ids,
 )
-from realtime_assistant.models import DiscoverySession, Requirement, UserStory
+from realtime_assistant.memory import memory
+from realtime_assistant.models import DiscoverySession, Requirement, UserStory, UserStorySet
 
 
 def make_story(source_requirement_ids: list[str]) -> UserStory:
@@ -83,3 +85,24 @@ def test_score_requirement_confidence_defaults_to_medium_for_unexpected_output()
         score = score_requirement_confidence("Users can log in", "functional", DiscoverySession())
 
     assert score == "medium"
+
+
+def test_generate_user_stories_accumulates_chat_usage() -> None:
+    memory.reset_session()
+    parsed = UserStorySet(user_stories=[make_story(["REQ-001"])])
+    completion = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(parsed=parsed))],
+        usage=SimpleNamespace(prompt_tokens=1000, completion_tokens=250),
+    )
+    mock_client = MagicMock()
+    mock_client.beta.chat.completions.parse.return_value = completion
+
+    with patch("realtime_assistant.llm.OpenAI", return_value=mock_client), patch.dict(
+        "os.environ", {"OPENAI_API_KEY": "test-key"}
+    ):
+        stories = llm.generate_user_stories(make_requirements())
+
+    assert len(stories) == 1
+    usage = memory.get_current_session().costs.chat_completions
+    assert usage.input_tokens == 1000
+    assert usage.output_tokens == 250

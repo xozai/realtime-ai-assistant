@@ -144,6 +144,24 @@ def test_clarified_topic_management() -> None:
     assert store.remove_clarified_topic("authentication") is False
 
 
+def test_cost_accumulation_updates_session_totals() -> None:
+    store = SessionMemory()
+
+    store.accumulate_realtime_usage(1000, 500)
+    store.accumulate_chat_usage(2000, 1000)
+    store.accumulate_embedding_usage(3000)
+    store.accumulate_realtime_usage(250, 125)
+
+    costs = store.get_current_session().costs
+    assert costs.realtime.input_tokens == 1250
+    assert costs.realtime.output_tokens == 625
+    assert costs.realtime.total_tokens == 1875
+    assert costs.realtime.estimated_cost_usd == pytest.approx(0.01875)
+    assert costs.chat_completions.estimated_cost_usd == pytest.approx(0.015)
+    assert costs.embeddings.estimated_cost_usd == pytest.approx(0.00006)
+    assert costs.total_cost_usd == pytest.approx(0.03381)
+
+
 def test_module_level_session_wrappers_expose_singleton_api(
     sample_requirement: Requirement,
     sample_user_story: UserStory,

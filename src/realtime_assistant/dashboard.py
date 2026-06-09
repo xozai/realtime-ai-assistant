@@ -113,6 +113,7 @@ async def patch_story(story_id: str, request: StoryUpdateRequest) -> dict[str, A
 async def get_session() -> dict[str, Any]:
     session = memory.get_current_session()
     return {
+        "costs": session.costs.model_dump(mode="json"),
         "requirement_count": len(memory.list_requirements()),
         "story_count": len(memory.list_user_stories()),
         "session_id": session.session_id,
@@ -263,6 +264,25 @@ DASHBOARD_HTML = """<!doctype html>
       gap: 12px;
     }
 
+    .cost-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .cost-item {
+      display: grid;
+      gap: 5px;
+      padding: 10px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .cost-item strong {
+      font-size: 16px;
+    }
+
     .card {
       display: grid;
       gap: 10px;
@@ -402,6 +422,7 @@ DASHBOARD_HTML = """<!doctype html>
       header { align-items: flex-start; flex-direction: column; }
       main { grid-template-columns: 1fr; padding: 16px; }
       .form-grid { grid-template-columns: 1fr; }
+      .cost-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
   </style>
 </head>
@@ -423,6 +444,10 @@ DASHBOARD_HTML = """<!doctype html>
   </header>
 
   <main>
+    <section id="cost-section">
+      <h2>Costs</h2>
+      <div class="cost-grid" id="costs"></div>
+    </section>
     <section id="summary-section" style="display:none">
       <h2>Executive Summary</h2>
       <div class="card" id="summary-card"></div>
@@ -444,6 +469,7 @@ DASHBOARD_HTML = """<!doctype html>
   <script>
     const requirementList = document.querySelector("#requirements");
     const storyList = document.querySelector("#stories");
+    const costList = document.querySelector("#costs");
     const requirementCount = document.querySelector("#requirement-count");
     const storyCount = document.querySelector("#story-count");
     const sessionMeta = document.querySelector("#session-meta");
@@ -462,6 +488,7 @@ DASHBOARD_HTML = """<!doctype html>
     })[char]);
 
     const formatDate = (value) => value ? new Date(value).toLocaleString() : "";
+    const formatUsd = (value) => `$${Number(value || 0).toFixed(6)}`;
     const selectOptions = (values, selected) => values.map((value) => `
       <option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>${escapeHtml(value)}</option>
     `).join("");
@@ -659,6 +686,22 @@ DASHBOARD_HTML = """<!doctype html>
       `;
     }
 
+    function renderCosts(costs) {
+      const rows = [
+        ["Realtime", costs?.realtime],
+        ["Chat", costs?.chat_completions],
+        ["Embeddings", costs?.embeddings],
+        ["Total", { estimated_cost_usd: costs?.total_cost_usd }]
+      ];
+      costList.innerHTML = rows.map(([label, usage]) => `
+        <div class="cost-item">
+          <span class="muted">${escapeHtml(label)}</span>
+          <strong>${formatUsd(usage?.estimated_cost_usd)}</strong>
+          <span class="muted">${escapeHtml(usage?.total_tokens ?? 0)} tokens</span>
+        </div>
+      `).join("");
+    }
+
     async function refreshDashboard() {
       if (activeEdit) return;
       const [requirementsResponse, storiesResponse, sessionResponse, summaryResponse, coverageResponse] = await Promise.all([
@@ -678,6 +721,7 @@ DASHBOARD_HTML = """<!doctype html>
       renderRequirements(requirements);
       renderStories(stories);
       sessionMeta.textContent = `${session.session_id} · Started ${formatDate(session.started_at)}`;
+      renderCosts(session.costs);
       renderSummary(summaryPayload.summary);
       renderCoverage(coveragePayload.coverage_report);
     }

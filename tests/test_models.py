@@ -5,7 +5,15 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from realtime_assistant.models import DiscoverySession, Requirement, UserStory
+from realtime_assistant.models import (
+    CHAT_INPUT_PRICE_PER_1K,
+    CHAT_OUTPUT_PRICE_PER_1K,
+    DiscoverySession,
+    Requirement,
+    SessionCosts,
+    TokenUsage,
+    UserStory,
+)
 
 
 def test_requirement_valid_instantiation(sample_requirement: Requirement) -> None:
@@ -139,3 +147,27 @@ def test_discovery_session_aggregates_requirements_and_user_stories(
     assert len(sample_session.user_stories) == 2
     assert sample_session.requirements[0].id == "REQ-001"
     assert sample_session.user_stories[0].id == "US-001"
+
+
+def test_token_usage_computes_total_and_estimated_cost() -> None:
+    usage = TokenUsage(
+        input_tokens=1000,
+        output_tokens=500,
+        input_price_per_1k=CHAT_INPUT_PRICE_PER_1K,
+        output_price_per_1k=CHAT_OUTPUT_PRICE_PER_1K,
+    )
+
+    assert usage.total_tokens == 1500
+    assert usage.estimated_cost_usd == 0.0075
+    assert "estimated_cost_usd" in usage.model_dump()
+    assert "input_price_per_1k" not in usage.model_dump()
+
+
+def test_session_costs_sums_model_type_costs() -> None:
+    costs = SessionCosts(
+        realtime=TokenUsage(input_tokens=1000, input_price_per_1k=0.005),
+        chat_completions=TokenUsage(output_tokens=1000, output_price_per_1k=0.01),
+        embeddings=TokenUsage(input_tokens=1000, input_price_per_1k=0.00002),
+    )
+
+    assert costs.total_cost_usd == pytest.approx(0.01502)

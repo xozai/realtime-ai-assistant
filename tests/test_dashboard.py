@@ -181,6 +181,8 @@ def test_invalid_story_points_returns_clear_error(sample_user_story: UserStory) 
 
 
 def test_get_session_returns_summary() -> None:
+    memory.accumulate_realtime_usage(1000, 500)
+
     response = client.get("/api/session")
 
     assert response.status_code == 200
@@ -189,6 +191,11 @@ def test_get_session_returns_summary() -> None:
     assert "story_count" in payload
     assert "session_id" in payload
     assert "started_at" in payload
+    assert payload["costs"]["realtime"]["input_tokens"] == 1000
+    assert payload["costs"]["realtime"]["output_tokens"] == 500
+    assert payload["costs"]["realtime"]["total_tokens"] == 1500
+    assert payload["costs"]["realtime"]["estimated_cost_usd"] == 0.015
+    assert payload["costs"]["total_cost_usd"] == 0.015
 
 
 def test_post_export_with_stories(sample_user_story: UserStory, monkeypatch, tmp_path) -> None:
@@ -212,6 +219,14 @@ def test_root_html_contains_auto_refresh() -> None:
     response = client.get("/")
 
     assert "setInterval" in response.text or "fetch" in response.text
+
+
+def test_root_html_contains_cost_section() -> None:
+    response = client.get("/")
+
+    assert "Costs" in response.text
+    assert 'id="costs"' in response.text
+    assert "renderCosts" in response.text
 
 
 def test_root_html_renders_story_source_requirements() -> None:
