@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.2.1...v0.3.0) (2026-06-09)
+
+
+### Features
+
+* persist discovery transcripts ([a949987](https://github.com/xozai/realtime-ai-assistant/commit/a949987d0c5ebeb99252986316576bdb84ff0116)), closes [#1](https://github.com/xozai/realtime-ai-assistant/issues/1)
+* reconnect dropped realtime sessions ([287c53d](https://github.com/xozai/realtime-ai-assistant/commit/287c53d2d4fdd6a98b1120565d6dcf590e6b0a03)), closes [#23](https://github.com/xozai/realtime-ai-assistant/issues/23)
+
+
+### Bug Fixes
+
+* clarify memory and export APIs ([da557ad](https://github.com/xozai/realtime-ai-assistant/commit/da557ad413f5fe1b1f99ff844c5a04c10469fd4c)), closes [#15](https://github.com/xozai/realtime-ai-assistant/issues/15)
+
+
+### Documentation
+
+* MVP issue triage and prioritization ([#27](https://github.com/xozai/realtime-ai-assistant/issues/27)) ([1deee81](https://github.com/xozai/realtime-ai-assistant/commit/1deee810271e30e1518faa23091bc703d55c21b8))
+
 ## [0.2.1](https://github.com/xozai/realtime-ai-assistant/compare/v0.2.0...v0.2.1) (2026-06-07)
 
 
