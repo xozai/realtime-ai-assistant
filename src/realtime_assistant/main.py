@@ -167,11 +167,14 @@ async def main() -> None:
         console.print(f"📊 Dashboard running at http://localhost:{args.dashboard_port}")
 
     mic_stream = None
+    speaker_stream = None
     if args.voice:
-        from realtime_assistant.audio import MicrophoneStream
+        from realtime_assistant.audio import MicrophoneStream, SpeakerStream
 
         mic_stream = MicrophoneStream()
         mic_stream.start()
+        speaker_stream = SpeakerStream()
+        speaker_stream.start()
         console.print("🎤 Voice mode active — speak now. Press Ctrl+C to end session.")
     else:
         console.print("💬 Text mode — type your message. Type quit to exit.")
@@ -183,6 +186,7 @@ async def main() -> None:
             voice_mode=args.voice,
             scripted_prompts=args.prompts,
             mic_stream=mic_stream,
+            speaker_stream=speaker_stream,
             reconnect_attempts=args.reconnect_attempts,
             reconnect_initial_delay=args.reconnect_delay,
             reconnect_max_delay=args.reconnect_max_delay,
@@ -197,6 +201,8 @@ async def main() -> None:
             dashboard_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await dashboard_task
+        if speaker_stream is not None:
+            speaker_stream.stop()
         if mic_stream is not None:
             mic_stream.stop()
 
@@ -258,6 +264,7 @@ async def run_realtime_session(
     voice_mode: bool,
     scripted_prompts: str | None,
     mic_stream: Any = None,
+    speaker_stream: Any = None,
     reconnect_attempts: int = REALTIME_RECONNECT_ATTEMPTS,
     reconnect_initial_delay: float = REALTIME_RECONNECT_INITIAL_DELAY,
     reconnect_max_delay: float = REALTIME_RECONNECT_MAX_DELAY,
@@ -277,6 +284,7 @@ async def run_realtime_session(
                     voice_mode=voice_mode,
                     scripted_prompts=scripted_prompts,
                     mic_stream=mic_stream,
+                    speaker_stream=speaker_stream,
                     session_memory=session_memory,
                     replay_context=retries_used > 0,
                     transcript=transcript,
@@ -315,6 +323,7 @@ async def run_single_realtime_connection(
     voice_mode: bool,
     scripted_prompts: str | None,
     mic_stream: Any = None,
+    speaker_stream: Any = None,
     session_memory: SessionMemory = memory,
     replay_context: bool = False,
     transcript: TranscriptWriter | None = None,
@@ -327,7 +336,7 @@ async def run_single_realtime_connection(
         console.print("[green]Realtime connection established.[/green]")
         logger.info("Realtime discovery session started. Type messages, or 'done' to generate stories.")
 
-        receiver_task = asyncio.create_task(receive_events(websocket, transcript))
+        receiver_task = asyncio.create_task(receive_events(websocket, transcript, speaker_stream=speaker_stream))
         if voice_mode:
             if mic_stream is None:
                 raise RuntimeError("Voice mode requested but microphone stream was not initialized.")
@@ -466,6 +475,8 @@ async def voice_sender(
 async def receive_events(
     websocket: websockets.WebSocketClientProtocol,
     transcript: TranscriptWriter | None = None,
+    *,
+    speaker_stream: Any = None,
 ) -> None:
     async for raw_event in websocket:
         try:
@@ -477,6 +488,13 @@ async def receive_events(
 
         if event_type == "error":
             logger.error("Realtime API error: %s", event.get("error"))
+            continue
+
+        if event_type == "response.audio.delta":
+            if speaker_stream is not None:
+                pcm = base64.b64decode(event.get("delta", ""))
+                if pcm:
+                    speaker_stream.enqueue(pcm)
             continue
 
         if event_type in {"response.text.delta", "response.output_text.delta"}:
