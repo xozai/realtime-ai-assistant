@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/xozai/realtime-ai-assistant/compare/v0.10.0...v0.10.1) (2026-06-09)
+
+
+### Documentation
+
+* update README for v0.3.0–v0.10.0 features ([#50](https://github.com/xozai/realtime-ai-assistant/issues/50)) ([c0d2823](https://github.com/xozai/realtime-ai-assistant/commit/c0d28230317547fa6b4247b404d7d4c30d9901dd))
+
 ## [0.10.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.9.0...v0.10.0) (2026-06-09)
 
 
