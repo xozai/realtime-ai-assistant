@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.10.1...v0.11.0) (2026-06-09)
+
+
+### Features
+
+* confidence scoring for captured requirements ([#4](https://github.com/xozai/realtime-ai-assistant/issues/4)) ([#52](https://github.com/xozai/realtime-ai-assistant/issues/52)) ([501b28c](https://github.com/xozai/realtime-ai-assistant/commit/501b28c4895f11d1de9424577e869767c927a18f))
+
 ## [0.10.1](https://github.com/xozai/realtime-ai-assistant/compare/v0.10.0...v0.10.1) (2026-06-09)
 
 
