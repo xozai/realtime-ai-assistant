@@ -75,6 +75,7 @@ def format_user_story_markdown(story: UserStory) -> str:
         "",
         f"**Priority:** {story.priority}",
         f"**Story Points:** {story.story_points}",
+        f"**Source Requirements:** {', '.join(story.source_requirement_ids) or 'None'}",
         "",
         f"**As a** {story.as_a},",
         f"**I want** {story.i_want},",

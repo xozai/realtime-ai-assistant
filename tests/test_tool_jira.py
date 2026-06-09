@@ -21,6 +21,7 @@ def make_story(story_id: str, title: str) -> UserStory:
         as_a="registered user",
         i_want="to use the feature",
         so_that="I get value",
+        source_requirement_ids=["REQ-001"],
         acceptance_criteria=["Given the feature is available, then I can use it."],
         priority="must-have",
         story_points=3,

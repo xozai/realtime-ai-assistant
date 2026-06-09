@@ -25,6 +25,7 @@ def make_story(priority: str = "must-have") -> UserStory:
         as_a="registered user",
         i_want="to log in with my email address",
         so_that="I can securely access my account",
+        source_requirement_ids=["REQ-001", "REQ-002"],
         acceptance_criteria=[
             "Given valid credentials, then access is granted.",
             "Given invalid credentials, then an error is shown.",
@@ -63,6 +64,8 @@ def test_create_issue_formats_description_correctly() -> None:
     assert "As a" in description
     assert "I want" in description
     assert "so that" in description
+    assert "Traceability:" in description
+    assert "Source Requirements: REQ-001, REQ-002" in description
     assert "Given valid credentials, then access is granted." in description
     assert "Given invalid credentials, then an error is shown." in description
 

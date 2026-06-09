@@ -87,7 +87,9 @@ class JiraClient:
     @staticmethod
     def _format_description(story: UserStory) -> str:
         criteria = "\n".join(f"- {criterion}" for criterion in story.acceptance_criteria)
+        source_ids = ", ".join(story.source_requirement_ids) or "None"
         return (
             f"As a {story.as_a}, I want {story.i_want}, so that {story.so_that}.\n\n"
+            f"Traceability:\nSource Requirements: {source_ids}\n\n"
             f"Acceptance Criteria:\n{criteria}"
         )

@@ -4,6 +4,7 @@
 
 **Priority:** must-have
 **Story Points:** 3
+**Source Requirements:** REQ-001
 
 **As a** registered user,
 **I want** to log in with my email address,

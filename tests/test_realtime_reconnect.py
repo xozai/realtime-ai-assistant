@@ -58,6 +58,7 @@ def populated_memory() -> SessionMemory:
                 as_a="facilitator",
                 i_want="the assistant to reconnect automatically",
                 so_that="captured requirements remain available",
+                source_requirement_ids=["REQ-001"],
                 acceptance_criteria=["Given a dropped socket, then the session reconnects."],
                 priority="must-have",
                 story_points=3,
