@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+from realtime_assistant import memory as memory_api
 from realtime_assistant.memory import SessionMemory
 from realtime_assistant.models import DiscoverySession, Requirement, UserStory
 
@@ -85,6 +88,40 @@ def test_user_story_crud_methods(sample_user_story: UserStory) -> None:
     assert store.get_user_story(sample_user_story.id) is None
 
 
+def test_get_all_user_stories_returns_all_stored_items(sample_user_story: UserStory) -> None:
+    store = SessionMemory()
+    second = sample_user_story.model_copy(update={"id": "US-002", "title": "Password reset"})
+
+    store.add_user_story(sample_user_story)
+    store.add_user_story(second)
+
+    assert store.get_all_user_stories() == [sample_user_story, second]
+
+
+def test_update_user_story_preserves_order_and_validates(sample_user_story: UserStory) -> None:
+    store = SessionMemory()
+    second = sample_user_story.model_copy(update={"id": "US-002", "title": "Password reset"})
+    store.set_user_stories([sample_user_story, second])
+
+    updated = store.update_user_story(
+        sample_user_story.id,
+        title="Updated email login",
+        acceptance_criteria=["Given valid credentials, then access is granted."],
+        priority="should-have",
+        story_points=5,
+    )
+
+    assert updated is not None
+    assert updated.title == "Updated email login"
+    assert updated.acceptance_criteria == ["Given valid credentials, then access is granted."]
+    assert updated.priority == "should-have"
+    assert updated.story_points == 5
+    assert store.list_user_stories() == [updated, second]
+    assert store.update_user_story("missing", title="No-op") is None
+    with pytest.raises(ValueError, match="story_points"):
+        store.update_user_story(sample_user_story.id, story_points=4)
+
+
 def test_replace_and_clear_user_stories(sample_user_story: UserStory) -> None:
     store = SessionMemory()
 
@@ -105,3 +142,29 @@ def test_clarified_topic_management() -> None:
     assert store.list_clarified_topics() == ["authentication"]
     assert store.remove_clarified_topic("authentication") is True
     assert store.remove_clarified_topic("authentication") is False
+
+
+def test_module_level_session_wrappers_expose_singleton_api(
+    sample_requirement: Requirement,
+    sample_user_story: UserStory,
+) -> None:
+    session = DiscoverySession(session_id="DISC-WRAPPER")
+
+    assert memory_api.create_session(session) == session
+    assert memory_api.get_current_session() == session
+    assert memory_api.add_requirement(sample_requirement) == sample_requirement
+    assert memory_api.get_all_requirements() == [sample_requirement]
+    assert memory_api.update_requirement(sample_requirement.id, text="Updated requirement") is not None
+    assert memory_api.get_requirement(sample_requirement.id).text == "Updated requirement"
+    assert memory_api.add_user_story(sample_user_story) == sample_user_story
+    assert memory_api.get_all_user_stories() == [sample_user_story]
+    assert memory_api.update_user_story(sample_user_story.id, title="Updated story") is not None
+    assert memory_api.get_user_story(sample_user_story.id).title == "Updated story"
+    assert memory_api.remove_requirement(sample_requirement.id) is True
+    assert memory_api.remove_user_story(sample_user_story.id) is True
+
+    reset = memory_api.reset_session()
+
+    assert reset != session
+    assert memory_api.list_requirements() == []
+    assert memory_api.list_user_stories() == []

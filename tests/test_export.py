@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from realtime_assistant import export
 from realtime_assistant.models import UserStory
 
@@ -80,6 +82,30 @@ def test_export_user_stories_accepts_custom_paths(
     assert paths == [json_path, markdown_path]
     assert json_path.exists()
     assert markdown_path.exists()
+
+
+def test_export_user_stories_returns_only_requested_format(
+    sample_user_story: UserStory,
+    tmp_path: Path,
+) -> None:
+    json_path = tmp_path / "stories.json"
+    markdown_path = tmp_path / "stories.md"
+
+    paths = export.export_user_stories(
+        [sample_user_story],
+        "json",
+        json_path=json_path,
+        markdown_path=markdown_path,
+    )
+
+    assert paths == [json_path]
+    assert json_path.exists()
+    assert not markdown_path.exists()
+
+
+def test_export_user_stories_rejects_unknown_format(sample_user_story: UserStory) -> None:
+    with pytest.raises(ValueError, match="format must be one of"):
+        export.export_user_stories([sample_user_story], "pdf")
 
 
 def test_empty_exports_are_valid() -> None:
