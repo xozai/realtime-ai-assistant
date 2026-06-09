@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.12.0...v0.13.0) (2026-06-09)
+
+
+### Features
+
+* requirement deduplication via embeddings ([#5](https://github.com/xozai/realtime-ai-assistant/issues/5)) ([#53](https://github.com/xozai/realtime-ai-assistant/issues/53)) ([6bf5546](https://github.com/xozai/realtime-ai-assistant/commit/6bf554682692979e8da5499216ddfa797a66ca91))
+
 ## [0.12.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.11.0...v0.12.0) (2026-06-09)
 
 
