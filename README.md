@@ -18,6 +18,7 @@ Inspired by [`disler/poc-realtime-ai-assistant`](https://github.com/disler/poc-r
 | Jira integration (`submit_stories_to_jira`) | ✅ Shipped |
 | Voice input mode (`--voice`, server VAD) | ✅ Shipped |
 | Web dashboard (FastAPI, dark theme, live refresh, inline editing) | ✅ Shipped |
+| Executive summary (`generate_session_summary`) | ✅ Shipped |
 | Conversation transcript | 🔜 [#1](https://github.com/xozai/realtime-ai-assistant/issues/1) P1 |
 | Session resume | ✅ Shipped |
 | Multi-product support | 🔜 [#3](https://github.com/xozai/realtime-ai-assistant/issues/3) P2 |
@@ -110,6 +111,8 @@ python src/realtime_assistant/main.py --dashboard-port 9000
 | `DELETE` | `/api/requirements/{requirement_id}` | Delete one requirement |
 | `GET` | `/api/stories` | All generated user stories |
 | `PATCH` | `/api/stories/{story_id}` | Update generated story fields, acceptance criteria, priority, and points |
+| `GET` | `/api/summary` | Current executive summary (`null` if not yet generated) |
+| `POST` | `/api/summary/generate` | Generate and store executive summary via LLM |
 | `GET` | `/api/session` | Session ID, start time, counts |
 | `POST` | `/api/export` | Export stories to JSON + Markdown |
 | `POST` | `/api/jira/{project_key}` | Submit stories to Jira |
@@ -128,6 +131,7 @@ The Realtime session registers these tools with the model:
 | `ask_clarifying_question(topic, question)` | Log a clarifying question |
 | `summarize_requirements()` | Print all captured requirements to terminal |
 | `generate_user_stories()` | Produce structured `UserStory` objects via Chat Completions |
+| `generate_session_summary()` | Generate a structured executive summary (overview, key requirements, open questions, risks) |
 | `export_user_stories(format, output_dir, export_name)` | Write JSON and Markdown exports; destination fields are optional |
 | `submit_stories_to_jira(project_key)` | Create Jira Story issues for each story |
 

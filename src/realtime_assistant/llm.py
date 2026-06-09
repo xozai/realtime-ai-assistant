@@ -5,7 +5,7 @@ import os
 
 from openai import OpenAI
 
-from realtime_assistant.models import Requirement, UserStory, UserStorySet
+from realtime_assistant.models import Requirement, SessionSummary, UserStory, UserStorySet
 from realtime_assistant.prompts import story_generation_prompt
 
 
@@ -75,3 +75,65 @@ def generate_user_stories(requirements: list[Requirement], model: str = "gpt-4o"
             raise RuntimeError("Story generation returned no content.")
         parsed = UserStorySet.model_validate(json.loads(content))
         return validate_story_source_requirement_ids(parsed.user_stories, requirements)
+
+
+def _summary_prompt(requirements: list[Requirement], clarified_topics: list[str]) -> str:
+    req_lines = "\n".join(
+        f"- [{req.category}] {req.text}" for req in requirements
+    )
+    clarified = ", ".join(clarified_topics) if clarified_topics else "none"
+    return (
+        "You are a senior business analyst. Based on the discovery call data below, "
+        "produce a concise executive summary.\n\n"
+        f"## Captured Requirements\n{req_lines or '(none)'}\n\n"
+        f"## Clarified Topics\n{clarified}\n\n"
+        "Fill every field of the SessionSummary schema. "
+        "Group requirements by their category label. "
+        "List any topics that appear in the requirements but are NOT in clarified topics as open questions. "
+        "Identify risks from non-functional / constraint / assumption requirements."
+    )
+
+
+def generate_session_summary(
+    requirements: list[Requirement],
+    clarified_topics: list[str],
+    model: str = "gpt-4o",
+) -> SessionSummary:
+    """Generate a structured executive summary from captured discovery-call data."""
+    if not os.getenv("OPENAI_API_KEY"):
+        raise RuntimeError("OPENAI_API_KEY is not set. Copy .env.example to .env and add a key.")
+
+    client = OpenAI()
+    messages = [
+        {"role": "system", "content": "You are a senior business analyst."},
+        {"role": "user", "content": _summary_prompt(requirements, clarified_topics)},
+    ]
+
+    try:
+        completion = client.beta.chat.completions.parse(
+            model=model,
+            messages=messages,
+            response_format=SessionSummary,
+        )
+        parsed = completion.choices[0].message.parsed
+        if parsed is None:
+            raise RuntimeError("Structured output parser returned no parsed content.")
+        return parsed
+    except AttributeError:
+        schema = SessionSummary.model_json_schema()
+        completion = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "session_summary",
+                    "schema": schema,
+                    "strict": True,
+                },
+            },
+        )
+        content = completion.choices[0].message.content
+        if content is None:
+            raise RuntimeError("Summary generation returned no content.")
+        return SessionSummary.model_validate(json.loads(content))

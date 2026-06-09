@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pydantic import TypeAdapter
 
-from realtime_assistant.models import UserStory
+from realtime_assistant.models import SessionSummary, UserStory
 
 __all__ = [
     "EXPORTS_DIR",
@@ -16,6 +16,7 @@ __all__ = [
     "export_to_json",
     "export_to_markdown",
     "export_user_stories",
+    "format_session_summary_markdown",
     "format_user_story_markdown",
     "format_user_stories_markdown",
     "resolve_export_paths",
@@ -68,11 +69,16 @@ def export_to_json(stories: list[UserStory], path: Path | str = JSON_PATH) -> Pa
     return output_path
 
 
-def export_to_markdown(stories: list[UserStory], path: Path | str = MARKDOWN_PATH) -> Path:
-    """Write user stories as Markdown and return the output path."""
+def export_to_markdown(
+    stories: list[UserStory],
+    path: Path | str = MARKDOWN_PATH,
+    *,
+    summary: SessionSummary | None = None,
+) -> Path:
+    """Write user stories (and optional executive summary) as Markdown and return the output path."""
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(format_user_stories_markdown(stories), encoding="utf-8")
+    output_path.write_text(format_user_stories_markdown(stories, summary=summary), encoding="utf-8")
     return output_path
 
 
@@ -85,6 +91,7 @@ def export_user_stories(
     output_dir: Path | str = EXPORTS_DIR,
     export_name: str = DEFAULT_EXPORT_NAME,
     session_id: str | None = None,
+    summary: SessionSummary | None = None,
 ) -> list[Path]:
     """Export user stories to JSON, Markdown, or both.
 
@@ -121,7 +128,7 @@ def export_user_stories(
     if writes_json:
         paths.append(export_to_json(stories, output_json_path))
     if writes_markdown:
-        paths.append(export_to_markdown(stories, output_markdown_path))
+        paths.append(export_to_markdown(stories, output_markdown_path, summary=summary))
     return paths
 
 
@@ -129,6 +136,33 @@ def user_stories_to_json(stories: list[UserStory]) -> str:
     """Format user stories as the public JSON export payload."""
     payload = TypeAdapter(list[UserStory]).dump_python(stories, mode="json")
     return json.dumps({"user_stories": payload}, indent=2)
+
+
+def format_session_summary_markdown(summary: SessionSummary) -> str:
+    """Format a SessionSummary as a Markdown section."""
+    lines = ["## Executive Summary", "", summary.overview, ""]
+
+    if summary.key_requirements:
+        lines.append("### Key Requirements")
+        lines.append("")
+        for category, reqs in summary.key_requirements.items():
+            lines.append(f"**{category.capitalize()}**")
+            lines.extend(f"- {req}" for req in reqs)
+            lines.append("")
+
+    if summary.open_questions:
+        lines.append("### Open Questions")
+        lines.append("")
+        lines.extend(f"- {q}" for q in summary.open_questions)
+        lines.append("")
+
+    if summary.risks_and_assumptions:
+        lines.append("### Risks & Assumptions")
+        lines.append("")
+        lines.extend(f"- {r}" for r in summary.risks_and_assumptions)
+        lines.append("")
+
+    return "\n".join(lines)
 
 
 def format_user_story_markdown(story: UserStory) -> str:
@@ -151,9 +185,18 @@ def format_user_story_markdown(story: UserStory) -> str:
     return "\n".join(lines)
 
 
-def format_user_stories_markdown(stories: list[UserStory]) -> str:
+def format_user_stories_markdown(
+    stories: list[UserStory],
+    *,
+    summary: SessionSummary | None = None,
+) -> str:
     """Format a collection of user stories as a complete Markdown document."""
     lines = ["# User Stories", ""]
+
+    if summary is not None:
+        lines.append(format_session_summary_markdown(summary))
+        lines.append("")
+
     if not stories:
         lines.append("_No user stories generated yet._")
         return "\n".join(lines) + "\n"

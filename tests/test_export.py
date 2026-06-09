@@ -178,3 +178,57 @@ def test_repeated_exports_overwrite_cleanly(sample_user_story: UserStory) -> Non
     assert "_No user stories generated yet._" not in Path(export.MARKDOWN_PATH).read_text(
         encoding="utf-8"
     )
+
+
+# ---------------------------------------------------------------------------
+# Executive summary in Markdown export
+# ---------------------------------------------------------------------------
+
+def test_format_user_stories_markdown_includes_executive_summary_when_set(
+    sample_user_story: UserStory,
+) -> None:
+    from realtime_assistant.models import SessionSummary
+
+    summary = SessionSummary(
+        overview="This session covered authentication.",
+        key_requirements={"functional": ["Users can log in"]},
+        open_questions=["SSO needed?"],
+        risks_and_assumptions=["Email provider must be available"],
+    )
+
+    content = export.format_user_stories_markdown([sample_user_story], summary=summary)
+
+    assert "## Executive Summary" in content
+    assert "This session covered authentication." in content
+    assert "Users can log in" in content
+    assert "SSO needed?" in content
+    assert "Email provider must be available" in content
+    assert "Email login" in content  # story still present
+
+
+def test_format_user_stories_markdown_omits_summary_section_when_none(
+    sample_user_story: UserStory,
+) -> None:
+    content = export.format_user_stories_markdown([sample_user_story])
+
+    assert "## Executive Summary" not in content
+    assert "Email login" in content
+
+
+def test_export_to_markdown_includes_summary_in_file(
+    sample_user_story: UserStory, tmp_path: Path
+) -> None:
+    from realtime_assistant.models import SessionSummary
+
+    summary = SessionSummary(
+        overview="Overview text",
+        key_requirements={},
+        open_questions=[],
+        risks_and_assumptions=[],
+    )
+    out = tmp_path / "out.md"
+    export.export_to_markdown([sample_user_story], out, summary=summary)
+    content = out.read_text()
+
+    assert "## Executive Summary" in content
+    assert "Overview text" in content

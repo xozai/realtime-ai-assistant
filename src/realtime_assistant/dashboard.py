@@ -8,7 +8,11 @@ from pydantic import BaseModel, ValidationError
 
 from realtime_assistant.memory import memory
 from realtime_assistant.models import Priority, RequirementCategory
-from realtime_assistant.tools import export_user_stories, submit_stories_to_jira
+from realtime_assistant.tools import (
+    export_user_stories,
+    generate_session_summary,
+    submit_stories_to_jira,
+)
 
 app = FastAPI(title="Discovery Assistant Dashboard")
 
@@ -119,6 +123,19 @@ async def get_session() -> dict[str, Any]:
 @app.post("/api/export")
 async def post_export() -> dict[str, Any]:
     return await export_user_stories("both")
+
+
+@app.get("/api/summary")
+async def get_summary() -> dict[str, Any]:
+    session = memory.get_current_session()
+    if session.summary is None:
+        return {"summary": None}
+    return {"summary": session.summary.model_dump(mode="json")}
+
+
+@app.post("/api/summary/generate")
+async def post_generate_summary() -> dict[str, Any]:
+    return await generate_session_summary()
 
 
 @app.post("/api/jira/{project_key}")
@@ -388,11 +405,16 @@ DASHBOARD_HTML = """<!doctype html>
         <span class="count">Stories <strong id="story-count">0</strong></span>
       </div>
       <button type="button" id="export-button">Export</button>
+      <button type="button" id="summary-button">Generate Summary</button>
       <button type="button" id="jira-button">Submit to Jira</button>
     </div>
   </header>
 
   <main>
+    <section id="summary-section" style="display:none">
+      <h2>Executive Summary</h2>
+      <div class="card" id="summary-card"></div>
+    </section>
     <section>
       <h2>Requirements</h2>
       <div class="list" id="requirements"></div>
@@ -584,21 +606,42 @@ DASHBOARD_HTML = """<!doctype html>
       }).join("");
     }
 
+    function renderSummary(summary) {
+      const section = document.querySelector("#summary-section");
+      const card = document.querySelector("#summary-card");
+      if (!summary) { section.style.display = "none"; return; }
+      section.style.display = "";
+      const reqs = Object.entries(summary.key_requirements || {}).map(([cat, items]) =>
+        `<p><strong>${escapeHtml(cat)}</strong></p><ul>${items.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>`
+      ).join("");
+      const openQs = (summary.open_questions || []).map((q) => `<li>${escapeHtml(q)}</li>`).join("");
+      const risks = (summary.risks_and_assumptions || []).map((r) => `<li>${escapeHtml(r)}</li>`).join("");
+      card.innerHTML = `
+        <p class="req-text">${escapeHtml(summary.overview)}</p>
+        ${reqs ? `<h3>Key Requirements</h3>${reqs}` : ""}
+        ${openQs ? `<h3>Open Questions</h3><ul>${openQs}</ul>` : ""}
+        ${risks ? `<h3>Risks &amp; Assumptions</h3><ul>${risks}</ul>` : ""}
+      `;
+    }
+
     async function refreshDashboard() {
       if (activeEdit) return;
-      const [requirementsResponse, storiesResponse, sessionResponse] = await Promise.all([
+      const [requirementsResponse, storiesResponse, sessionResponse, summaryResponse] = await Promise.all([
         fetch("/api/requirements"),
         fetch("/api/stories"),
-        fetch("/api/session")
+        fetch("/api/session"),
+        fetch("/api/summary"),
       ]);
-      const [requirements, stories, session] = await Promise.all([
+      const [requirements, stories, session, summaryPayload] = await Promise.all([
         requirementsResponse.json(),
         storiesResponse.json(),
-        sessionResponse.json()
+        sessionResponse.json(),
+        summaryResponse.json(),
       ]);
       renderRequirements(requirements);
       renderStories(stories);
       sessionMeta.textContent = `${session.session_id} · Started ${formatDate(session.started_at)}`;
+      renderSummary(summaryPayload.summary);
     }
 
     requirementList.addEventListener("click", async (event) => {
@@ -675,6 +718,17 @@ DASHBOARD_HTML = """<!doctype html>
         }
       } catch (error) {
         showToast(error.message);
+      }
+    });
+
+    document.querySelector("#summary-button").addEventListener("click", async () => {
+      showToast("Generating executive summary…");
+      try {
+        const result = await apiJson("/api/summary/generate", { method: "POST" });
+        renderSummary(result.summary);
+        showToast("Executive summary generated.");
+      } catch (error) {
+        showToast(`Summary failed: ${error.message}`);
       }
     });
 

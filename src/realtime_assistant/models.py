@@ -56,6 +56,21 @@ class UserStorySet(BaseModel):
     user_stories: list[UserStory]
 
 
+class SessionSummary(BaseModel):
+    """Structured executive summary of a discovery call."""
+
+    overview: str = Field(description="One-paragraph narrative of the session goal and scope.")
+    key_requirements: dict[str, list[str]] = Field(
+        description="Requirements grouped by category (functional, non-functional, constraint, assumption)."
+    )
+    open_questions: list[str] = Field(
+        description="Topics that were raised but not resolved during the call."
+    )
+    risks_and_assumptions: list[str] = Field(
+        description="Risks inferred from the discussion and explicit assumption-category requirements."
+    )
+
+
 class JiraConfig(BaseModel):
     base_url: str
     user_email: str
@@ -77,3 +92,4 @@ class DiscoverySession(BaseModel):
     started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     requirements: list[Requirement] = Field(default_factory=list)
     user_stories: list[UserStory] = Field(default_factory=list)
+    summary: SessionSummary | None = None
