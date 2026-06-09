@@ -33,11 +33,15 @@ def test_transcript_writer_creates_text_and_jsonl_with_session_id(tmp_path: Path
     writer.record_assistant_delta("What identity ")
     writer.record_assistant_delta("provider?")
     writer.flush_assistant_message()
-    writer.record_tool_call("capture_requirement", {"requirement": "SSO", "category": "functional"})
+    writer.record_tool_call(
+        "capture_requirement",
+        {"requirement": "SSO", "category": "functional"},
+    )
     writer.record_tool_result("capture_requirement", {"ok": True})
+    writer.close()
 
-    assert writer.text_path == tmp_path / "2026-06-08_14-30-05.txt"
-    assert writer.jsonl_path == tmp_path / "2026-06-08_14-30-05.jsonl"
+    assert writer.text_path == tmp_path / "2026-06-08_14-30-05_DISC-TEST.txt"
+    assert writer.jsonl_path == tmp_path / "2026-06-08_14-30-05_DISC-TEST.jsonl"
     text = writer.text_path.read_text(encoding="utf-8")
     assert "Session ID: DISC-TEST" in text
     assert "User: Users need SSO." in text
@@ -45,6 +49,7 @@ def test_transcript_writer_creates_text_and_jsonl_with_session_id(tmp_path: Path
     assert "Tool Call: capture_requirement" in text
     assert '"category": "functional"' in text
     assert "Tool Result: capture_requirement" in text
+    assert "Session End:" in text
 
     records = read_jsonl(writer.jsonl_path)
     assert [record["type"] for record in records] == [
@@ -53,11 +58,14 @@ def test_transcript_writer_creates_text_and_jsonl_with_session_id(tmp_path: Path
         "assistant_message",
         "tool_call",
         "tool_result",
+        "session_ended",
     ]
     assert {record["session_id"] for record in records} == {"DISC-TEST"}
     assert records[3]["name"] == "capture_requirement"
     assert records[3]["arguments"] == {"requirement": "SSO", "category": "functional"}
+    assert records[4]["status"] == "ok"
     assert records[4]["result"] == {"ok": True}
+    assert "ended_at" in records[5]
 
 
 def test_send_text_message_records_user_message(tmp_path: Path) -> None:
@@ -91,6 +99,7 @@ def test_dispatch_tool_records_call_and_result_with_mocked_handler(tmp_path: Pat
         "category": "functional",
     }
     assert records[2]["type"] == "tool_result"
+    assert records[2]["status"] == "ok"
     assert records[2]["result"] == result
 
 
