@@ -101,6 +101,15 @@ def parse_args() -> argparse.Namespace:
         "--session-id",
         help="Start a new discovery session with a known session ID.",
     )
+    parser.add_argument(
+        "--output-dir",
+        help="Directory for generated exports. Defaults to project-root exports/.",
+    )
+    parser.add_argument(
+        "--export-name",
+        default="user_stories",
+        help="Base filename for generated exports, without extension.",
+    )
     args = parser.parse_args()
     if args.resume and args.session_id:
         parser.error("--resume and --session-id cannot be used together.")
@@ -134,6 +143,7 @@ def create_transcript_writer(
 async def main() -> None:
     args = parse_args()
     initialize_session_from_args(args)
+    memory.configure_export_options(output_dir=args.output_dir, export_name=args.export_name)
 
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")

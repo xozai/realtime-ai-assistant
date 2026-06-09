@@ -84,6 +84,52 @@ def test_export_user_stories_accepts_custom_paths(
     assert markdown_path.exists()
 
 
+def test_resolve_export_paths_defaults_to_session_directory() -> None:
+    paths = export.resolve_export_paths("DISC-001")
+
+    assert paths["json"] == export.EXPORTS_DIR.resolve() / "DISC-001" / "user_stories.json"
+    assert paths["markdown"] == export.EXPORTS_DIR.resolve() / "DISC-001" / "user_stories.md"
+    assert paths["json"] != export.JSON_PATH
+    assert paths["markdown"] != export.MARKDOWN_PATH
+
+
+def test_export_user_stories_defaults_to_session_aware_paths(
+    sample_user_story: UserStory,
+    tmp_path: Path,
+) -> None:
+    paths = export.export_user_stories(
+        [sample_user_story],
+        "both",
+        output_dir=tmp_path,
+        session_id="DISC-001",
+    )
+
+    assert paths == [
+        tmp_path.resolve() / "DISC-001" / "user_stories.json",
+        tmp_path.resolve() / "DISC-001" / "user_stories.md",
+    ]
+    assert paths[0] != export.JSON_PATH
+    assert paths[1] != export.MARKDOWN_PATH
+    assert paths[0].exists()
+    assert paths[1].exists()
+
+
+def test_export_user_stories_accepts_custom_output_dir_and_export_name(
+    sample_user_story: UserStory,
+    tmp_path: Path,
+) -> None:
+    paths = export.export_user_stories(
+        [sample_user_story],
+        "json",
+        output_dir=tmp_path / "custom",
+        export_name="discovery_output",
+        session_id="DISC-002",
+    )
+
+    assert paths == [tmp_path.resolve() / "custom" / "DISC-002" / "discovery_output.json"]
+    assert paths[0].exists()
+
+
 def test_export_user_stories_returns_only_requested_format(
     sample_user_story: UserStory,
     tmp_path: Path,
@@ -103,9 +149,17 @@ def test_export_user_stories_returns_only_requested_format(
     assert not markdown_path.exists()
 
 
-def test_export_user_stories_rejects_unknown_format(sample_user_story: UserStory) -> None:
+def test_export_user_stories_rejects_unknown_format(
+    sample_user_story: UserStory,
+    tmp_path: Path,
+) -> None:
     with pytest.raises(ValueError, match="format must be one of"):
-        export.export_user_stories([sample_user_story], "pdf")
+        export.export_user_stories(
+            [sample_user_story],
+            "pdf",
+            json_path=tmp_path / "stories.json",
+            markdown_path=tmp_path / "stories.md",
+        )
 
 
 def test_empty_exports_are_valid() -> None:

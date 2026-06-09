@@ -4,12 +4,14 @@ from fastapi.testclient import TestClient
 
 from realtime_assistant.dashboard import app
 from realtime_assistant.memory import memory
-from realtime_assistant.models import Requirement, UserStory
+from realtime_assistant.models import DiscoverySession, Requirement, UserStory
 
 client = TestClient(app)
 
 
 def setup_function() -> None:
+    memory.reset_session()
+    memory.configure_export_options()
     memory.clear_requirements()
     memory.clear_user_stories()
     memory.clear_clarified_topics()
@@ -72,13 +74,20 @@ def test_get_session_returns_summary() -> None:
 
 
 def test_post_export_with_stories(sample_user_story: UserStory, monkeypatch, tmp_path) -> None:
+    memory.create_session(DiscoverySession(session_id="DISC-DASH"))
+    memory.configure_export_options(output_dir=tmp_path)
     memory.set_user_stories([sample_user_story])
     monkeypatch.chdir(tmp_path)
 
     response = client.post("/api/export")
 
     assert response.status_code == 200
-    assert response.json()["ok"] is True
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["paths"] == [
+        str(tmp_path.resolve() / "DISC-DASH" / "user_stories.json"),
+        str(tmp_path.resolve() / "DISC-DASH" / "user_stories.md"),
+    ]
 
 
 def test_root_html_contains_auto_refresh() -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 from pydantic import TypeAdapter
@@ -8,6 +9,8 @@ from pydantic import TypeAdapter
 from realtime_assistant.models import UserStory
 
 __all__ = [
+    "EXPORTS_DIR",
+    "ExportOptions",
     "JSON_PATH",
     "MARKDOWN_PATH",
     "export_to_json",
@@ -15,17 +18,52 @@ __all__ = [
     "export_user_stories",
     "format_user_story_markdown",
     "format_user_stories_markdown",
+    "resolve_export_paths",
     "user_stories_to_json",
 ]
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+EXPORTS_DIR = PROJECT_ROOT / "exports"
 JSON_PATH = PROJECT_ROOT / "user_stories.json"
 MARKDOWN_PATH = PROJECT_ROOT / "user_stories.md"
+DEFAULT_EXPORT_NAME = "user_stories"
+
+
+@dataclass(frozen=True)
+class ExportOptions:
+    """Destination settings for user-story exports."""
+
+    session_id: str
+    output_dir: Path | str = EXPORTS_DIR
+    export_name: str = DEFAULT_EXPORT_NAME
+
+    def resolve_paths(self) -> dict[str, Path]:
+        return resolve_export_paths(
+            self.session_id,
+            output_dir=self.output_dir,
+            export_name=self.export_name,
+        )
+
+
+def resolve_export_paths(
+    session_id: str,
+    output_dir: Path | str = EXPORTS_DIR,
+    export_name: str = DEFAULT_EXPORT_NAME,
+) -> dict[str, Path]:
+    """Resolve absolute JSON and Markdown paths for a session-aware export."""
+    normalized_session_id = _filename_safe(session_id, "session_id")
+    normalized_export_name = _filename_safe(export_name, "export_name")
+    base_dir = Path(output_dir).expanduser().resolve() / normalized_session_id
+    return {
+        "json": base_dir / f"{normalized_export_name}.json",
+        "markdown": base_dir / f"{normalized_export_name}.md",
+    }
 
 
 def export_to_json(stories: list[UserStory], path: Path | str = JSON_PATH) -> Path:
     """Write user stories as JSON and return the output path."""
     output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(user_stories_to_json(stories), encoding="utf-8")
     return output_path
 
@@ -33,6 +71,7 @@ def export_to_json(stories: list[UserStory], path: Path | str = JSON_PATH) -> Pa
 def export_to_markdown(stories: list[UserStory], path: Path | str = MARKDOWN_PATH) -> Path:
     """Write user stories as Markdown and return the output path."""
     output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(format_user_stories_markdown(stories), encoding="utf-8")
     return output_path
 
@@ -41,24 +80,48 @@ def export_user_stories(
     stories: list[UserStory],
     output_format: str = "all",
     *,
-    json_path: Path | str = JSON_PATH,
-    markdown_path: Path | str = MARKDOWN_PATH,
+    json_path: Path | str | None = None,
+    markdown_path: Path | str | None = None,
+    output_dir: Path | str = EXPORTS_DIR,
+    export_name: str = DEFAULT_EXPORT_NAME,
+    session_id: str | None = None,
 ) -> list[Path]:
     """Export user stories to JSON, Markdown, or both.
 
     ``output_format`` accepts ``all``/``both``, ``json``, or
-    ``markdown``/``md``. The default paths preserve the original CLI behavior,
-    while path arguments make the function testable without touching project
-    root files.
+    ``markdown``/``md``. By default, exports are written below
+    ``exports/<session_id>/`` so generated output does not overwrite the root
+    sample files. Explicit path arguments are still supported for callers that
+    need full control.
     """
     normalized = output_format.lower().strip()
-    paths: list[Path] = []
-    if normalized in {"all", "both", "json"}:
-        paths.append(export_to_json(stories, json_path))
-    if normalized in {"all", "both", "markdown", "md"}:
-        paths.append(export_to_markdown(stories, markdown_path))
-    if not paths:
+    writes_json = normalized in {"all", "both", "json"}
+    writes_markdown = normalized in {"all", "both", "markdown", "md"}
+    if not writes_json and not writes_markdown:
         raise ValueError("format must be one of: all, both, json, markdown")
+
+    resolved_paths: dict[str, Path] | None = None
+    if (writes_json and json_path is None) or (writes_markdown and markdown_path is None):
+        if session_id is None:
+            raise ValueError("session_id is required unless explicit export paths are provided.")
+        resolved_paths = resolve_export_paths(session_id, output_dir, export_name)
+
+    if json_path is None:
+        output_json_path = resolved_paths["json"] if resolved_paths is not None else JSON_PATH
+    else:
+        output_json_path = Path(json_path)
+    if markdown_path is None:
+        output_markdown_path = (
+            resolved_paths["markdown"] if resolved_paths is not None else MARKDOWN_PATH
+        )
+    else:
+        output_markdown_path = Path(markdown_path)
+
+    paths: list[Path] = []
+    if writes_json:
+        paths.append(export_to_json(stories, output_json_path))
+    if writes_markdown:
+        paths.append(export_to_markdown(stories, output_markdown_path))
     return paths
 
 
@@ -110,3 +173,12 @@ def _to_json(stories: list[UserStory]) -> str:
 def _to_markdown(stories: list[UserStory]) -> str:
     """Compatibility wrapper for older internal tests/imports."""
     return format_user_stories_markdown(stories)
+
+
+def _filename_safe(value: str, field_name: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(f"{field_name} cannot be blank.")
+    if Path(normalized).name != normalized:
+        raise ValueError(f"{field_name} must be a filename-safe value, not a path.")
+    return normalized
