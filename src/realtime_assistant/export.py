@@ -61,11 +61,16 @@ def resolve_export_paths(
     }
 
 
-def export_to_json(stories: list[UserStory], path: Path | str = JSON_PATH) -> Path:
+def export_to_json(
+    stories: list[UserStory],
+    path: Path | str = JSON_PATH,
+    *,
+    coverage_report: CoverageReport | None = None,
+) -> Path:
     """Write user stories as JSON and return the output path."""
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(user_stories_to_json(stories), encoding="utf-8")
+    output_path.write_text(user_stories_to_json(stories, coverage_report=coverage_report), encoding="utf-8")
     return output_path
 
 
@@ -74,11 +79,15 @@ def export_to_markdown(
     path: Path | str = MARKDOWN_PATH,
     *,
     summary: SessionSummary | None = None,
+    coverage_report: CoverageReport | None = None,
 ) -> Path:
     """Write user stories (and optional executive summary) as Markdown and return the output path."""
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(format_user_stories_markdown(stories, summary=summary), encoding="utf-8")
+    output_path.write_text(
+        format_user_stories_markdown(stories, summary=summary, coverage_report=coverage_report),
+        encoding="utf-8",
+    )
     return output_path
 
 
