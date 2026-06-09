@@ -48,6 +48,15 @@ def test_submit_stories_no_stories_returns_error() -> None:
     assert result["error"] == "No user stories in memory. Run generate_user_stories first."
 
 
+def test_submit_stories_without_jira_project_key_warns() -> None:
+    result = asyncio.run(submit_stories_to_jira())
+
+    assert result["ok"] is False
+    assert result["error"] == "Jira project_key is required."
+    assert "separate from the discovery project key" in result["warning"]
+    assert result["discovery_project_key"] == memory.get_current_session().project_key
+
+
 def test_submit_stories_missing_env_returns_error() -> None:
     with patch.dict("os.environ", {}, clear=True):
         result = asyncio.run(submit_stories_to_jira("PROJ"))

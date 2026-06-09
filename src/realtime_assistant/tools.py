@@ -125,7 +125,7 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                     "description": "The Jira project key, e.g. PROJ or MYAPP",
                 }
             },
-            "required": ["project_key"],
+            "required": [],
             "additionalProperties": False,
         },
     },
@@ -272,7 +272,18 @@ async def export_user_stories(
     }
 
 
-async def submit_stories_to_jira(project_key: str) -> dict[str, Any]:
+async def submit_stories_to_jira(project_key: str | None = None) -> dict[str, Any]:
+    if not project_key:
+        return {
+            "ok": False,
+            "error": "Jira project_key is required.",
+            "warning": (
+                "The Jira project key is separate from the discovery project key; "
+                "pass the Jira project key explicitly."
+            ),
+            "discovery_project_key": memory.get_current_session().project_key,
+        }
+
     try:
         config = JiraConfig.from_env()
     except KeyError as exc:

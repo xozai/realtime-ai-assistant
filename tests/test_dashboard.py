@@ -181,6 +181,7 @@ def test_invalid_story_points_returns_clear_error(sample_user_story: UserStory) 
 
 
 def test_get_session_returns_summary() -> None:
+    memory.create_session(DiscoverySession(project_key="billing", project_name="Billing App"))
     memory.accumulate_realtime_usage(1000, 500)
 
     response = client.get("/api/session")
@@ -190,6 +191,8 @@ def test_get_session_returns_summary() -> None:
     assert "requirement_count" in payload
     assert "story_count" in payload
     assert "session_id" in payload
+    assert payload["project_key"] == "billing"
+    assert payload["project_name"] == "Billing App"
     assert "started_at" in payload
     assert payload["costs"]["realtime"]["input_tokens"] == 1000
     assert payload["costs"]["realtime"]["output_tokens"] == 500
@@ -227,6 +230,13 @@ def test_root_html_contains_cost_section() -> None:
     assert "Costs" in response.text
     assert 'id="costs"' in response.text
     assert "renderCosts" in response.text
+
+
+def test_root_html_contains_project_indicator() -> None:
+    response = client.get("/")
+
+    assert "project-indicator" in response.text
+    assert "Project:" in response.text
 
 
 def test_root_html_renders_story_source_requirements() -> None:

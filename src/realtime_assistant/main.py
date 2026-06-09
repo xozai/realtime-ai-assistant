@@ -96,7 +96,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--resume",
-        help="Load an existing discovery session from sessions/<session_id>.json.",
+        help="Load an existing discovery session from sessions/<project>/<session_id>.json.",
+    )
+    parser.add_argument(
+        "--project",
+        default="default",
+        help="Discovery project key for session isolation.",
     )
     parser.add_argument(
         "--session-id",
@@ -119,14 +124,18 @@ def parse_args() -> argparse.Namespace:
 
 def initialize_session_from_args(args: argparse.Namespace) -> DiscoverySession:
     if args.resume:
-        session = memory.load_session(args.resume, SESSIONS_DIR)
-        console.print(f"↩️  Resumed session: {session.session_id}")
+        session = memory.load_session(args.resume, SESSIONS_DIR, project_key=args.project)
+        console.print(f"↩️  Resumed session: {session.session_id} ({session.project_key})")
         return session
     if args.session_id:
-        session = memory.create_session(DiscoverySession(session_id=args.session_id))
-        console.print(f"🧭 Session ID: {session.session_id}")
+        session = memory.create_session(
+            DiscoverySession(session_id=args.session_id, project_key=args.project)
+        )
+        console.print(f"🧭 Session ID: {session.session_id} ({session.project_key})")
         return session
-    return memory.get_current_session()
+    session = memory.create_session(DiscoverySession(project_key=args.project))
+    console.print(f"🧭 Session ID: {session.session_id} ({session.project_key})")
+    return session
 
 
 def create_transcript_writer(

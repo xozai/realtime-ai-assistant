@@ -143,6 +143,8 @@ def test_captured_at_defaults_to_now() -> None:
 def test_discovery_session_aggregates_requirements_and_user_stories(
     sample_session: DiscoverySession,
 ) -> None:
+    assert sample_session.project_key == "default"
+    assert sample_session.project_name == ""
     assert len(sample_session.requirements) == 2
     assert len(sample_session.user_stories) == 2
     assert sample_session.requirements[0].id == "REQ-001"
