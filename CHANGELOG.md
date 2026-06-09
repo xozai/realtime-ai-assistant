@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.7.0...v0.8.0) (2026-06-09)
+
+
+### Features
+
+* generate discovery-call executive summary ([#44](https://github.com/xozai/realtime-ai-assistant/issues/44)) ([448ae4d](https://github.com/xozai/realtime-ai-assistant/commit/448ae4de87daa21b6602edb00cc59472e4d180ac))
+
 ## [0.7.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.6.0...v0.7.0) (2026-06-09)
 
 
