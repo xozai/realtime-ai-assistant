@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.5.0...v0.6.0) (2026-06-09)
+
+
+### Features
+
+* configure session-aware export destinations ([#40](https://github.com/xozai/realtime-ai-assistant/issues/40)) ([64ac26f](https://github.com/xozai/realtime-ai-assistant/commit/64ac26f8e81fd7ab0a189e6e3e5e6e806cd47d2e))
+
 ## [0.5.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.4.0...v0.5.0) (2026-06-09)
 
 
