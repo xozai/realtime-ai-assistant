@@ -17,15 +17,15 @@ from realtime_assistant.tools import (
 
 def setup_function() -> None:
     memory.clear_requirements()
-    memory.set_user_stories([])
-    memory.clarified_topics.clear()
+    memory.clear_user_stories()
+    memory.clear_clarified_topics()
 
 
 def test_capture_requirement_returns_success_and_appears_in_memory() -> None:
     result = asyncio.run(capture_requirement("Users can log in with email", "functional"))
     assert result["ok"] is True
     assert result["requirement"]["text"] == "Users can log in with email"
-    assert memory.get_all_requirements()[0].text == "Users can log in with email"
+    assert memory.list_requirements()[0].text == "Users can log in with email"
 
 
 def test_ask_clarifying_question_returns_topic_and_question() -> None:
