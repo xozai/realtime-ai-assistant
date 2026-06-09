@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.8.0...v0.9.0) (2026-06-09)
+
+
+### Features
+
+* add voice output playback via SpeakerStream ([#22](https://github.com/xozai/realtime-ai-assistant/issues/22)) ([#46](https://github.com/xozai/realtime-ai-assistant/issues/46)) ([c07e496](https://github.com/xozai/realtime-ai-assistant/commit/c07e496772f2ce095dcd8d55be01f9d152d72fe5))
+
 ## [0.8.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.7.0...v0.8.0) (2026-06-09)
 
 
