@@ -43,8 +43,9 @@ ignore = ["E501"]
 [tool.ruff.lint.per-file-ignores]
 # main.py uses a sys.path bootstrap block before imports — E402 is intentional
 "src/realtime_assistant/main.py" = ["E402"]
-# test_audio.py stubs sounddevice into sys.modules before importing the module under test
+# test_audio.py and test_speaker_stream.py stub sounddevice into sys.modules before importing the module under test
 "tests/test_audio.py" = ["E402"]
+"tests/test_speaker_stream.py" = ["E402"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
