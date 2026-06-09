@@ -19,7 +19,7 @@ Inspired by [`disler/poc-realtime-ai-assistant`](https://github.com/disler/poc-r
 | Voice input mode (`--voice`, server VAD) | ✅ Shipped |
 | Web dashboard (FastAPI, dark theme, live refresh) | ✅ Shipped |
 | Conversation transcript | 🔜 [#1](https://github.com/xozai/realtime-ai-assistant/issues/1) P1 |
-| Session resume | 🔜 [#2](https://github.com/xozai/realtime-ai-assistant/issues/2) P2 |
+| Session resume | ✅ Shipped |
 | Multi-product support | 🔜 [#3](https://github.com/xozai/realtime-ai-assistant/issues/3) P2 |
 | Confidence scoring | 🔜 [#4](https://github.com/xozai/realtime-ai-assistant/issues/4) P2 |
 | Requirement deduplication (embeddings) | 🔜 [#5](https://github.com/xozai/realtime-ai-assistant/issues/5) P2 |
@@ -79,6 +79,8 @@ python src/realtime_assistant/main.py --prompts "We need a task manager|Users ne
 | `--voice` | off | Live microphone input (requires `sounddevice`) |
 | `--no-dashboard` | off | Disable the web dashboard |
 | `--dashboard-port PORT` | `8000` | Dashboard port |
+| `--resume SESSION_ID` | unset | Load `sessions/SESSION_ID.json` before connecting |
+| `--session-id SESSION_ID` | generated | Start a new session with a known ID |
 
 ---
 
