@@ -19,6 +19,9 @@ __all__ = [
     "SessionMemory",
     "add_requirement",
     "add_user_story",
+    "accumulate_chat_usage",
+    "accumulate_embedding_usage",
+    "accumulate_realtime_usage",
     "clear_requirements",
     "clear_user_stories",
     "configure_export_options",
@@ -87,6 +90,29 @@ class SessionMemory:
     def dump_session(self, *, mode: str = "json") -> dict:
         """Serialize the active session for dashboards, tools, or tests."""
         return self.session.model_dump(mode=mode)
+
+    def accumulate_realtime_usage(self, input_tokens: int = 0, output_tokens: int = 0) -> None:
+        """Add Realtime token usage to the active session."""
+        self._accumulate_usage("realtime", input_tokens, output_tokens)
+
+    def accumulate_chat_usage(self, input_tokens: int = 0, output_tokens: int = 0) -> None:
+        """Add Chat Completions token usage to the active session."""
+        self._accumulate_usage("chat_completions", input_tokens, output_tokens)
+
+    def accumulate_embedding_usage(self, input_tokens: int = 0, output_tokens: int = 0) -> None:
+        """Add embedding token usage to the active session."""
+        self._accumulate_usage("embeddings", input_tokens, output_tokens)
+
+    def _accumulate_usage(self, model_type: str, input_tokens: int, output_tokens: int) -> None:
+        usage = getattr(self.session.costs, model_type)
+        updated = usage.model_copy(
+            update={
+                "input_tokens": usage.input_tokens + max(0, input_tokens),
+                "output_tokens": usage.output_tokens + max(0, output_tokens),
+            }
+        )
+        costs = self.session.costs.model_copy(update={model_type: updated})
+        self.session = self.session.model_copy(update={"costs": costs})
 
     def dump_persisted_session(self) -> dict:
         """Serialize session memory to the stable on-disk JSON shape."""
@@ -346,6 +372,21 @@ def reset_session() -> DiscoverySession:
 def dump_session(*, mode: str = "json") -> dict:
     """Serialize the active singleton discovery session."""
     return memory.dump_session(mode=mode)
+
+
+def accumulate_realtime_usage(input_tokens: int = 0, output_tokens: int = 0) -> None:
+    """Add Realtime token usage to the singleton session."""
+    memory.accumulate_realtime_usage(input_tokens, output_tokens)
+
+
+def accumulate_chat_usage(input_tokens: int = 0, output_tokens: int = 0) -> None:
+    """Add Chat Completions token usage to the singleton session."""
+    memory.accumulate_chat_usage(input_tokens, output_tokens)
+
+
+def accumulate_embedding_usage(input_tokens: int = 0, output_tokens: int = 0) -> None:
+    """Add embedding token usage to the singleton session."""
+    memory.accumulate_embedding_usage(input_tokens, output_tokens)
 
 
 def save_session(output_dir: Path | str = SESSIONS_DIR) -> Path:

@@ -14,6 +14,7 @@ sys.modules.setdefault("sounddevice", MagicMock())
 
 from realtime_assistant.audio import SpeakerStream
 from realtime_assistant.main import receive_events
+from realtime_assistant.memory import SessionMemory
 
 # ---------------------------------------------------------------------------
 # SpeakerStream unit tests
@@ -111,3 +112,27 @@ async def test_receive_events_skips_empty_audio_delta() -> None:
     await receive_events(websocket, transcript=None, speaker_stream=mock_speaker)
 
     assert enqueued == []
+
+
+@pytest.mark.asyncio
+async def test_receive_events_accumulates_response_done_usage() -> None:
+    store = SessionMemory()
+    events = [
+        {
+            "type": "response.done",
+            "response": {
+                "usage": {
+                    "input_tokens": 120,
+                    "output_tokens": 30,
+                },
+                "output": [],
+            },
+        }
+    ]
+    websocket = FakeWebSocket(events)
+
+    await receive_events(websocket, transcript=None, session_memory=store)
+
+    usage = store.get_current_session().costs.realtime
+    assert usage.input_tokens == 120
+    assert usage.output_tokens == 30

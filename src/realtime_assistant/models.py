@@ -5,12 +5,18 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 RequirementCategory = Literal["functional", "non-functional", "constraint", "assumption"]
 RequirementConfidence = Literal["high", "medium", "low"]
 Priority = Literal["must-have", "should-have", "could-have", "wont-have"]
 CoverageStatus = Literal["covered", "uncovered", "no-stories-yet"]
+
+REALTIME_INPUT_PRICE_PER_1K = float(os.getenv("REALTIME_INPUT_PRICE_PER_1K", "0.005"))
+REALTIME_OUTPUT_PRICE_PER_1K = float(os.getenv("REALTIME_OUTPUT_PRICE_PER_1K", "0.02"))
+CHAT_INPUT_PRICE_PER_1K = float(os.getenv("CHAT_INPUT_PRICE_PER_1K", "0.0025"))
+CHAT_OUTPUT_PRICE_PER_1K = float(os.getenv("CHAT_OUTPUT_PRICE_PER_1K", "0.01"))
+EMBEDDING_PRICE_PER_1K = float(os.getenv("EMBEDDING_PRICE_PER_1K", "0.00002"))
 
 
 class Requirement(BaseModel):
@@ -57,6 +63,70 @@ class UserStory(BaseModel):
 
 class UserStorySet(BaseModel):
     user_stories: list[UserStory]
+
+
+class TokenUsage(BaseModel):
+    input_tokens: int = 0
+    output_tokens: int = 0
+    input_price_per_1k: float = Field(default=0.0, exclude=True)
+    output_price_per_1k: float = Field(default=0.0, exclude=True)
+
+    @computed_field
+    @property
+    def total_tokens(self) -> int:
+        return self.input_tokens + self.output_tokens
+
+    @computed_field
+    @property
+    def estimated_cost_usd(self) -> float:
+        input_cost = self.input_tokens / 1000 * self.input_price_per_1k
+        output_cost = self.output_tokens / 1000 * self.output_price_per_1k
+        return input_cost + output_cost
+
+
+class SessionCosts(BaseModel):
+    realtime: TokenUsage = Field(
+        default_factory=lambda: TokenUsage(
+            input_price_per_1k=REALTIME_INPUT_PRICE_PER_1K,
+            output_price_per_1k=REALTIME_OUTPUT_PRICE_PER_1K,
+        )
+    )
+    chat_completions: TokenUsage = Field(
+        default_factory=lambda: TokenUsage(
+            input_price_per_1k=CHAT_INPUT_PRICE_PER_1K,
+            output_price_per_1k=CHAT_OUTPUT_PRICE_PER_1K,
+        )
+    )
+    embeddings: TokenUsage = Field(
+        default_factory=lambda: TokenUsage(
+            input_price_per_1k=EMBEDDING_PRICE_PER_1K,
+            output_price_per_1k=0.0,
+        )
+    )
+
+    @model_validator(mode="after")
+    def populate_price_table(self) -> SessionCosts:
+        if self.realtime.input_price_per_1k == 0 and self.realtime.output_price_per_1k == 0:
+            self.realtime.input_price_per_1k = REALTIME_INPUT_PRICE_PER_1K
+            self.realtime.output_price_per_1k = REALTIME_OUTPUT_PRICE_PER_1K
+        if (
+            self.chat_completions.input_price_per_1k == 0
+            and self.chat_completions.output_price_per_1k == 0
+        ):
+            self.chat_completions.input_price_per_1k = CHAT_INPUT_PRICE_PER_1K
+            self.chat_completions.output_price_per_1k = CHAT_OUTPUT_PRICE_PER_1K
+        if self.embeddings.input_price_per_1k == 0 and self.embeddings.output_price_per_1k == 0:
+            self.embeddings.input_price_per_1k = EMBEDDING_PRICE_PER_1K
+        return self
+
+    @computed_field
+    @property
+    def total_cost_usd(self) -> float:
+        return (
+            self.realtime.estimated_cost_usd
+            + self.chat_completions.estimated_cost_usd
+            + self.embeddings.estimated_cost_usd
+        )
 
 
 class RequirementCoverage(BaseModel):
@@ -121,3 +191,4 @@ class DiscoverySession(BaseModel):
     user_stories: list[UserStory] = Field(default_factory=list)
     summary: SessionSummary | None = None
     coverage_report: CoverageReport | None = None
+    costs: SessionCosts = Field(default_factory=SessionCosts)

@@ -20,6 +20,7 @@ from typing import Any
 
 import websockets
 from dotenv import load_dotenv
+from rich.table import Table
 
 from realtime_assistant.logging import console, logger
 from realtime_assistant.memory import SESSIONS_DIR, SessionMemory, memory
@@ -192,6 +193,7 @@ async def main() -> None:
             reconnect_max_delay=args.reconnect_max_delay,
             transcript=transcript,
         )
+        print_cost_summary(memory.get_current_session())
     finally:
         session_path = memory.save_session(SESSIONS_DIR)
         console.print(f"💾 Session saved: {session_path}")
@@ -336,7 +338,14 @@ async def run_single_realtime_connection(
         console.print("[green]Realtime connection established.[/green]")
         logger.info("Realtime discovery session started. Type messages, or 'done' to generate stories.")
 
-        receiver_task = asyncio.create_task(receive_events(websocket, transcript, speaker_stream=speaker_stream))
+        receiver_task = asyncio.create_task(
+            receive_events(
+                websocket,
+                transcript,
+                speaker_stream=speaker_stream,
+                session_memory=session_memory,
+            )
+        )
         if voice_mode:
             if mic_stream is None:
                 raise RuntimeError("Voice mode requested but microphone stream was not initialized.")
@@ -477,6 +486,7 @@ async def receive_events(
     transcript: TranscriptWriter | None = None,
     *,
     speaker_stream: Any = None,
+    session_memory: SessionMemory = memory,
 ) -> None:
     async for raw_event in websocket:
         try:
@@ -532,9 +542,50 @@ async def receive_events(
             continue
 
         if event_type == "response.done":
+            response = event.get("response", {})
+            usage = response.get("usage", {}) if isinstance(response, dict) else {}
+            input_tokens = _usage_value(usage, "input_tokens")
+            output_tokens = _usage_value(usage, "output_tokens")
+            if input_tokens or output_tokens:
+                session_memory.accumulate_realtime_usage(input_tokens, output_tokens)
             if transcript is not None:
                 transcript.flush_assistant_message()
             await handle_completed_response(websocket, event, transcript)
+
+
+def _usage_value(usage: Any, key: str) -> int:
+    if isinstance(usage, dict):
+        value = usage.get(key, 0)
+    else:
+        value = getattr(usage, key, 0)
+    return value if isinstance(value, int) else 0
+
+
+def print_cost_summary(session: DiscoverySession) -> None:
+    costs = session.costs
+    table = Table(title="Session Token Usage & Estimated Cost", header_style="bold cyan")
+    table.add_column("Model Type")
+    table.add_column("Input Tokens", justify="right")
+    table.add_column("Output Tokens", justify="right")
+    table.add_column("Total Tokens", justify="right")
+    table.add_column("Estimated Cost", justify="right")
+
+    rows = [
+        ("Realtime", costs.realtime),
+        ("Chat Completions", costs.chat_completions),
+        ("Embeddings", costs.embeddings),
+    ]
+    for label, usage in rows:
+        table.add_row(
+            label,
+            str(usage.input_tokens),
+            str(usage.output_tokens),
+            str(usage.total_tokens),
+            f"${usage.estimated_cost_usd:.6f}",
+        )
+    table.add_section()
+    table.add_row("Total", "", "", "", f"${costs.total_cost_usd:.6f}")
+    console.print(table)
 
 
 async def handle_completed_response(
