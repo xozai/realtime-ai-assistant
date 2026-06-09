@@ -72,8 +72,13 @@ class SessionMemory:
     stored item while preserving list order for all other items.
     """
 
-    def __init__(self, session: DiscoverySession | None = None) -> None:
-        self.session = session or DiscoverySession()
+    def __init__(
+        self,
+        session: DiscoverySession | None = None,
+        *,
+        project_key: str = "default",
+    ) -> None:
+        self.session = session or DiscoverySession(project_key=project_key)
         self.clarified_topics: set[str] = set()
         self.export_output_dir: Path | None = None
         self.export_name = "user_stories"
@@ -82,9 +87,20 @@ class SessionMemory:
         """Return the active discovery session."""
         return self.session
 
-    def create_session(self, session: DiscoverySession | None = None) -> DiscoverySession:
+    def create_session(
+        self,
+        session: DiscoverySession | None = None,
+        *,
+        project_key: str | None = None,
+    ) -> DiscoverySession:
         """Start a new active discovery session and clear per-session topic state."""
-        self.session = session or DiscoverySession()
+        if session is not None and project_key is not None:
+            session = session.model_copy(
+                update={"project_key": _filename_safe(project_key, "project_key")}
+            )
+        elif session is None:
+            session = DiscoverySession(project_key=project_key or self.session.project_key)
+        self.session = session
         self.clear_clarified_topics()
         return self.session
 
@@ -136,9 +152,22 @@ class SessionMemory:
             "clarified_topics": self.list_clarified_topics(),
         }
 
-    def save_session(self, output_dir: Path | str = SESSIONS_DIR) -> Path:
+    def save_session(
+        self,
+        output_dir: Path | str = SESSIONS_DIR,
+        *,
+        project_key: str | None = None,
+    ) -> Path:
         """Persist the active discovery session and clarified topic markers."""
-        path = self._session_path(self.session.session_id, output_dir)
+        if project_key is not None:
+            self.session = self.session.model_copy(
+                update={"project_key": _filename_safe(project_key, "project_key")}
+            )
+        path = self._session_path(
+            self.session.session_id,
+            output_dir,
+            project_key=self.session.project_key,
+        )
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = self.dump_persisted_session()
         path.write_text(
@@ -151,9 +180,16 @@ class SessionMemory:
         self,
         session_id: str,
         input_dir: Path | str = SESSIONS_DIR,
+        *,
+        project_key: str | None = None,
     ) -> DiscoverySession:
         """Load a persisted discovery session and make it active."""
-        path = self._session_path(session_id, input_dir)
+        resolved_project_key = project_key or self.session.project_key
+        path = self._session_path(session_id, input_dir, project_key=resolved_project_key)
+        if not path.exists():
+            legacy_path = self._legacy_session_path(session_id, input_dir)
+            if legacy_path.exists():
+                path = legacy_path
         payload = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             raise ValueError(f"Session file {path} must contain a JSON object.")
@@ -163,6 +199,10 @@ class SessionMemory:
             raise ValueError(f"Session file {path} is missing a session object.")
 
         session = DiscoverySession.model_validate(session_payload)
+        if project_key is not None:
+            session = session.model_copy(
+                update={"project_key": _filename_safe(project_key, "project_key")}
+            )
         clarified_topics = payload.get("clarified_topics", [])
         if not isinstance(clarified_topics, list):
             raise ValueError(f"Session file {path} has invalid clarified_topics.")
@@ -175,13 +215,20 @@ class SessionMemory:
         return self.session
 
     @staticmethod
-    def _session_path(session_id: str, directory: Path | str) -> Path:
-        normalized = session_id.strip()
-        if not normalized:
-            raise ValueError("session_id cannot be blank.")
-        if Path(normalized).name != normalized:
-            raise ValueError("session_id must be a filename-safe ID, not a path.")
-        return Path(directory) / f"{normalized}.json"
+    def _session_path(
+        session_id: str,
+        directory: Path | str,
+        *,
+        project_key: str = "default",
+    ) -> Path:
+        normalized_session_id = _filename_safe(session_id, "session_id")
+        normalized_project_key = _filename_safe(project_key, "project_key")
+        return Path(directory) / normalized_project_key / f"{normalized_session_id}.json"
+
+    @staticmethod
+    def _legacy_session_path(session_id: str, directory: Path | str) -> Path:
+        normalized_session_id = _filename_safe(session_id, "session_id")
+        return Path(directory) / f"{normalized_session_id}.json"
 
     def create_requirement(self, text: str, category: RequirementCategory) -> Requirement:
         """Create and store a requirement from raw text and category."""
@@ -392,6 +439,15 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
     return dot_product / (magnitude_a * magnitude_b)
 
 
+def _filename_safe(value: str, field_name: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(f"{field_name} cannot be blank.")
+    if Path(normalized).name != normalized:
+        raise ValueError(f"{field_name} must be a filename-safe value, not a path.")
+    return normalized
+
+
 memory = SessionMemory()
 
 
@@ -400,9 +456,13 @@ def get_current_session() -> DiscoverySession:
     return memory.get_current_session()
 
 
-def create_session(session: DiscoverySession | None = None) -> DiscoverySession:
+def create_session(
+    session: DiscoverySession | None = None,
+    *,
+    project_key: str | None = None,
+) -> DiscoverySession:
     """Start a new singleton discovery session."""
-    return memory.create_session(session)
+    return memory.create_session(session, project_key=project_key)
 
 
 def reset_session() -> DiscoverySession:
@@ -430,17 +490,23 @@ def accumulate_embedding_usage(input_tokens: int = 0, output_tokens: int = 0) ->
     memory.accumulate_embedding_usage(input_tokens, output_tokens)
 
 
-def save_session(output_dir: Path | str = SESSIONS_DIR) -> Path:
+def save_session(
+    output_dir: Path | str = SESSIONS_DIR,
+    *,
+    project_key: str | None = None,
+) -> Path:
     """Persist the active singleton discovery session."""
-    return memory.save_session(output_dir)
+    return memory.save_session(output_dir, project_key=project_key)
 
 
 def load_session(
     session_id: str,
     input_dir: Path | str = SESSIONS_DIR,
+    *,
+    project_key: str | None = None,
 ) -> DiscoverySession:
     """Load a persisted discovery session into singleton memory."""
-    return memory.load_session(session_id, input_dir)
+    return memory.load_session(session_id, input_dir, project_key=project_key)
 
 
 def add_requirement(requirement: Requirement) -> Requirement:

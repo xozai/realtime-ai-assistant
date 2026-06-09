@@ -114,6 +114,8 @@ async def get_session() -> dict[str, Any]:
     session = memory.get_current_session()
     return {
         "costs": session.costs.model_dump(mode="json"),
+        "project_key": session.project_key,
+        "project_name": session.project_name,
         "requirement_count": len(memory.list_requirements()),
         "story_count": len(memory.list_user_stories()),
         "session_id": session.session_id,
@@ -203,6 +205,13 @@ DASHBOARD_HTML = """<!doctype html>
     h1 {
       font-size: 24px;
       font-weight: 750;
+    }
+
+    .project-indicator {
+      margin-top: 6px;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 700;
     }
 
     .actions, .counts {
@@ -430,6 +439,7 @@ DASHBOARD_HTML = """<!doctype html>
   <header>
     <div>
       <h1>🎙 Discovery Assistant</h1>
+      <p class="project-indicator" id="project-indicator">Project: default</p>
       <p class="muted" id="session-meta">Loading session...</p>
     </div>
     <div class="actions">
@@ -473,6 +483,7 @@ DASHBOARD_HTML = """<!doctype html>
     const requirementCount = document.querySelector("#requirement-count");
     const storyCount = document.querySelector("#story-count");
     const sessionMeta = document.querySelector("#session-meta");
+    const projectIndicator = document.querySelector("#project-indicator");
     const toast = document.querySelector("#toast");
     const requirementCategories = ["functional", "non-functional", "constraint", "assumption"];
     const storyPriorities = ["must-have", "should-have", "could-have", "wont-have"];
@@ -720,6 +731,8 @@ DASHBOARD_HTML = """<!doctype html>
       ]);
       renderRequirements(requirements);
       renderStories(stories);
+      const projectLabel = session.project_name || session.project_key || "default";
+      projectIndicator.textContent = `Project: ${projectLabel}`;
       sessionMeta.textContent = `${session.session_id} · Started ${formatDate(session.started_at)}`;
       renderCosts(session.costs);
       renderSummary(summaryPayload.summary);

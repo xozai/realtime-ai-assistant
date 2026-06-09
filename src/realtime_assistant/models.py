@@ -187,9 +187,21 @@ class JiraConfig(BaseModel):
 
 class DiscoverySession(BaseModel):
     session_id: str = Field(default_factory=lambda: f"DISC-{uuid4().hex[:8].upper()}")
+    project_key: str = "default"
+    project_name: str = ""
     started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     requirements: list[Requirement] = Field(default_factory=list)
     user_stories: list[UserStory] = Field(default_factory=list)
     summary: SessionSummary | None = None
     coverage_report: CoverageReport | None = None
     costs: SessionCosts = Field(default_factory=SessionCosts)
+
+    @field_validator("project_key")
+    @classmethod
+    def validate_project_key(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("project_key cannot be blank.")
+        if os.path.basename(normalized) != normalized:
+            raise ValueError("project_key must be a filename-safe value, not a path.")
+        return normalized
