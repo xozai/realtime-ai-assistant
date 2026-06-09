@@ -19,7 +19,7 @@ from realtime_assistant.logging import (
     logger,
 )
 from realtime_assistant.memory import memory
-from realtime_assistant.models import JiraConfig, RequirementCategory, UserStory
+from realtime_assistant.models import JiraConfig, RequirementCategory, SessionSummary, UserStory
 from realtime_assistant.transcript import TranscriptWriter
 
 ToolHandler = Callable[..., Awaitable[Any]]
@@ -120,6 +120,16 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             "additionalProperties": False,
         },
     },
+    {
+        "type": "function",
+        "name": "generate_session_summary",
+        "description": (
+            "Generate a structured executive summary of the discovery call: "
+            "overview, key requirements grouped by category, open questions, and risks/assumptions. "
+            "Call this near the end of a session after requirements are captured."
+        ),
+        "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
 ]
 
 
@@ -181,6 +191,7 @@ async def export_user_stories(
         output_dir=output_dir or memory.export_output_dir or story_export.EXPORTS_DIR,
         export_name=export_name or memory.export_name,
         session_id=session.session_id,
+        summary=session.summary,
     )
     absolute_paths = [path.resolve() for path in paths]
     logger.info("Exported user stories: %s", ", ".join(str(path) for path in absolute_paths))
@@ -224,6 +235,28 @@ async def submit_stories_to_jira(project_key: str) -> dict[str, Any]:
     }
 
 
+async def generate_session_summary() -> dict[str, Any]:
+    requirements = memory.list_requirements()
+    clarified_topics = memory.list_clarified_topics()
+    summary: SessionSummary = await asyncio.to_thread(
+        llm.generate_session_summary, requirements, clarified_topics
+    )
+    # Store on the current session
+    session = memory.get_current_session()
+    memory.session = session.model_copy(update={"summary": summary})
+    from rich.panel import Panel  # local import to avoid top-level Rich dependency churn
+    console.print(
+        Panel(
+            f"[bold]Overview:[/bold] {summary.overview}\n\n"
+            f"[bold]Open Questions:[/bold] {', '.join(summary.open_questions) or 'None'}\n"
+            f"[bold]Risks & Assumptions:[/bold] {', '.join(summary.risks_and_assumptions) or 'None'}",
+            title="Executive Summary",
+            border_style="cyan",
+        )
+    )
+    return {"ok": True, "summary": summary.model_dump(mode="json")}
+
+
 FUNCTION_MAP: dict[str, ToolHandler] = {
     "capture_requirement": capture_requirement,
     "ask_clarifying_question": ask_clarifying_question,
@@ -231,6 +264,7 @@ FUNCTION_MAP: dict[str, ToolHandler] = {
     "generate_user_stories": generate_user_stories,
     "export_user_stories": export_user_stories,
     "submit_stories_to_jira": submit_stories_to_jira,
+    "generate_session_summary": generate_session_summary,
 }
 
 

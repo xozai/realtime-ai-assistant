@@ -228,3 +228,62 @@ def test_root_html_contains_edit_controls_and_api_hooks() -> None:
     assert 'data-action="edit-story"' in response.text
     assert 'method: "PATCH"' in response.text
     assert 'method: "DELETE"' in response.text
+
+
+# ---------------------------------------------------------------------------
+# Summary endpoints
+# ---------------------------------------------------------------------------
+
+def test_get_summary_returns_null_when_not_set() -> None:
+    response = client.get("/api/summary")
+
+    assert response.status_code == 200
+    assert response.json() == {"summary": None}
+
+
+def test_get_summary_returns_summary_when_set() -> None:
+    from realtime_assistant.models import SessionSummary
+    summary = SessionSummary(
+        overview="Test overview",
+        key_requirements={"functional": ["Login"]},
+        open_questions=["SSO needed?"],
+        risks_and_assumptions=["Email available"],
+    )
+    session = memory.get_current_session()
+    memory.session = session.model_copy(update={"summary": summary})
+
+    response = client.get("/api/summary")
+
+    assert response.status_code == 200
+    payload = response.json()["summary"]
+    assert payload["overview"] == "Test overview"
+    assert payload["key_requirements"] == {"functional": ["Login"]}
+    assert payload["open_questions"] == ["SSO needed?"]
+
+
+def test_post_generate_summary_calls_llm_and_returns_summary() -> None:
+    from unittest.mock import patch
+
+    from realtime_assistant.models import SessionSummary
+    expected = SessionSummary(
+        overview="Discovery overview",
+        key_requirements={"functional": ["Users log in"]},
+        open_questions=[],
+        risks_and_assumptions=[],
+    )
+    with patch("realtime_assistant.llm.generate_session_summary", return_value=expected), \
+         patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+        response = client.post("/api/summary/generate")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["summary"]["overview"] == "Discovery overview"
+
+
+def test_root_html_contains_generate_summary_button() -> None:
+    response = client.get("/")
+
+    assert "Generate Summary" in response.text
+    assert "summary-button" in response.text
+    assert "/api/summary/generate" in response.text
