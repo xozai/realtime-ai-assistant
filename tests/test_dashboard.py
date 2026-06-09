@@ -41,6 +41,7 @@ def test_get_requirements_with_data(sample_requirement: Requirement) -> None:
     payload = response.json()
     assert len(payload) == 1
     assert payload[0]["text"] == sample_requirement.text
+    assert payload[0]["confidence"] == "medium"
 
 
 def test_get_stories_empty() -> None:
@@ -228,6 +229,15 @@ def test_root_html_contains_edit_controls_and_api_hooks() -> None:
     assert 'data-action="edit-story"' in response.text
     assert 'method: "PATCH"' in response.text
     assert 'method: "DELETE"' in response.text
+
+
+def test_root_html_renders_requirement_confidence_badge() -> None:
+    response = client.get("/")
+
+    assert "confidence-high" in response.text
+    assert "confidence-medium" in response.text
+    assert "confidence-low" in response.text
+    assert "requirement.confidence" in response.text
 
 
 # ---------------------------------------------------------------------------

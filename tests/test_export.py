@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from realtime_assistant import export
-from realtime_assistant.models import UserStory
+from realtime_assistant.models import Requirement, UserStory
 
 
 def test_export_to_json_writes_valid_file(sample_user_story: UserStory) -> None:
@@ -49,6 +49,20 @@ def test_format_user_story_markdown_is_testable_without_file_io(
     assert "- Given a registered user" in content
 
 
+def test_format_user_stories_markdown_includes_requirement_confidence() -> None:
+    requirement = Requirement(
+        id="REQ-LOW",
+        text="Make login better",
+        category="functional",
+        confidence="low",
+    )
+
+    content = export.format_user_stories_markdown([], requirements=[requirement])
+
+    assert "## Requirements" in content
+    assert "**REQ-LOW** [functional] (confidence: low): Make login better" in content
+
+
 def test_format_user_stories_markdown_includes_document_title(
     sample_user_story: UserStory,
 ) -> None:
@@ -63,6 +77,19 @@ def test_user_stories_to_json_formats_public_payload(sample_user_story: UserStor
     assert payload == {
         "user_stories": [sample_user_story.model_dump(mode="json")],
     }
+
+
+def test_user_stories_to_json_includes_requirement_confidence_when_provided() -> None:
+    requirement = Requirement(
+        id="REQ-LOW",
+        text="Make login better",
+        category="functional",
+        confidence="low",
+    )
+
+    payload = json.loads(export.user_stories_to_json([], requirements=[requirement]))
+
+    assert payload["requirements"][0]["confidence"] == "low"
 
 
 def test_export_user_stories_accepts_custom_paths(

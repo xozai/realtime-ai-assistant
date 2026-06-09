@@ -6,6 +6,8 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from pydantic import BaseModel
+from rich import box
+from rich.panel import Panel
 from rich.table import Table
 
 from realtime_assistant import export as story_export
@@ -146,6 +148,13 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
 
 async def capture_requirement(requirement: str, category: RequirementCategory) -> dict[str, Any]:
     captured = memory.create_requirement(requirement, category)
+    confidence = await asyncio.to_thread(
+        llm.score_requirement_confidence,
+        captured.text,
+        captured.category,
+        memory.get_current_session(),
+    )
+    captured.confidence = confidence
     log_requirement(captured)
     return {
         "ok": True,
@@ -167,13 +176,31 @@ async def ask_clarifying_question(topic: str, question: str) -> dict[str, Any]:
 
 async def summarize_requirements() -> dict[str, Any]:
     requirements = memory.list_requirements()
-    table = Table(title="Captured Requirements", header_style="bold cyan")
-    table.add_column("ID")
-    table.add_column("Category")
-    table.add_column("Requirement")
-    for req in requirements:
-        table.add_row(req.id, req.category, req.text)
-    console.print(table)
+    for confidence in ("high", "medium", "low"):
+        grouped = [req for req in requirements if req.confidence == confidence]
+        if not grouped:
+            continue
+        table = Table(
+            title=f"{confidence.title()} Confidence Requirements",
+            header_style="bold cyan",
+            box=box.SIMPLE_HEAVY,
+        )
+        table.add_column("ID")
+        table.add_column("Category")
+        table.add_column("Requirement")
+        for req in grouped:
+            table.add_row(req.id, req.category, req.text)
+        console.print(table)
+
+    low_confidence = [req for req in requirements if req.confidence == "low"]
+    if low_confidence:
+        console.print(
+            Panel(
+                "\n".join(f"{req.id}: {req.text}" for req in low_confidence),
+                title="Low-confidence requirements need clarification",
+                border_style="yellow",
+            )
+        )
     return {
         "ok": True,
         "requirements": [req.model_dump(mode="json") for req in requirements],
@@ -203,6 +230,7 @@ async def export_user_stories(
         export_name=export_name or memory.export_name,
         session_id=session.session_id,
         summary=session.summary,
+        requirements=session.requirements,
     )
     absolute_paths = [path.resolve() for path in paths]
     logger.info("Exported user stories: %s", ", ".join(str(path) for path in absolute_paths))

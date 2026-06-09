@@ -2,10 +2,17 @@ from __future__ import annotations
 
 import json
 import os
+from typing import Literal
 
 from openai import OpenAI
 
-from realtime_assistant.models import Requirement, SessionSummary, UserStory, UserStorySet
+from realtime_assistant.models import (
+    DiscoverySession,
+    Requirement,
+    SessionSummary,
+    UserStory,
+    UserStorySet,
+)
 from realtime_assistant.prompts import story_generation_prompt
 
 
@@ -75,6 +82,54 @@ def generate_user_stories(requirements: list[Requirement], model: str = "gpt-4o"
             raise RuntimeError("Story generation returned no content.")
         parsed = UserStorySet.model_validate(json.loads(content))
         return validate_story_source_requirement_ids(parsed.user_stories, requirements)
+
+
+def score_requirement_confidence(
+    requirement_text: str,
+    category: str,
+    session: DiscoverySession,
+    model: str = "gpt-4o",
+) -> Literal["high", "medium", "low"]:
+    """Rate how clearly articulated a captured requirement is."""
+    if not os.getenv("OPENAI_API_KEY"):
+        raise RuntimeError("OPENAI_API_KEY is not set. Copy .env.example to .env and add a key.")
+
+    client = OpenAI()
+    nearby_requirements = "\n".join(
+        f"- {req.id} [{req.category}, {req.confidence}]: {req.text}"
+        for req in session.requirements[-8:]
+    )
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You rate requirement clarity for software discovery. "
+                "Return exactly one word: high, medium, or low."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "Rate how clearly articulated this requirement is.\n\n"
+                f"Requirement: {requirement_text}\n"
+                f"Category: {category}\n\n"
+                "Use high when the requirement is specific and testable, medium when it is "
+                "understandable but missing some detail, and low when it is vague, ambiguous, "
+                "or needs follow-up before story generation.\n\n"
+                f"Recent session requirements:\n{nearby_requirements or '(none)'}"
+            ),
+        },
+    ]
+    completion = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=0,
+    )
+    content = completion.choices[0].message.content
+    score = (content or "").strip().lower()
+    if score in {"high", "medium", "low"}:
+        return score
+    return "medium"
 
 
 def _summary_prompt(requirements: list[Requirement], clarified_topics: list[str]) -> str:

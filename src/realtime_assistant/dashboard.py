@@ -171,6 +171,7 @@ DASHBOARD_HTML = """<!doctype html>
       --red: #dc2626;
       --gray: #64748b;
       --green: #22c55e;
+      --yellow: #eab308;
     }
 
     * { box-sizing: border-box; }
@@ -354,6 +355,9 @@ DASHBOARD_HTML = """<!doctype html>
     .constraint { background: rgba(220, 38, 38, 0.18); color: #fca5a5; border-color: var(--red); }
     .assumption { background: rgba(100, 116, 139, 0.2); color: #cbd5e1; border-color: var(--gray); }
     .priority { background: rgba(34, 197, 94, 0.15); color: #86efac; border-color: var(--green); }
+    .confidence-high { background: rgba(34, 197, 94, 0.15); color: #86efac; border-color: var(--green); }
+    .confidence-medium { background: rgba(234, 179, 8, 0.16); color: #fde047; border-color: var(--yellow); }
+    .confidence-low { background: rgba(220, 38, 38, 0.18); color: #fca5a5; border-color: var(--red); }
     .points { background: #0f172a; color: #cbd5e1; }
 
     ul {
@@ -520,7 +524,10 @@ DASHBOARD_HTML = """<!doctype html>
         <article class="card">
           <div class="card-top">
             <p class="req-text">${escapeHtml(requirement.text)}</p>
-            <span class="badge ${escapeHtml(requirement.category)}">${escapeHtml(requirement.category)}</span>
+            <div class="source-list">
+              <span class="badge ${escapeHtml(requirement.category)}">${escapeHtml(requirement.category)}</span>
+              <span class="badge confidence-${escapeHtml(requirement.confidence || "medium")}">${escapeHtml(requirement.confidence || "medium")}</span>
+            </div>
           </div>
           <div class="card-actions">
             <button type="button" data-action="edit-requirement" data-id="${escapeHtml(requirement.id)}">Edit</button>

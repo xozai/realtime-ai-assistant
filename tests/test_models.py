@@ -12,6 +12,7 @@ def test_requirement_valid_instantiation(sample_requirement: Requirement) -> Non
     assert sample_requirement.id == "REQ-001"
     assert sample_requirement.text == "Users can log in with email"
     assert sample_requirement.category == "functional"
+    assert sample_requirement.confidence == "medium"
     assert sample_requirement.captured_at.tzinfo is not None
 
 
@@ -59,6 +60,25 @@ def test_user_story_source_requirement_ids_reject_blank_values() -> None:
 def test_invalid_requirement_category_raises() -> None:
     with pytest.raises(ValidationError):
         Requirement(text="Users can log in", category="invalid")
+
+
+def test_requirement_confidence_accepts_valid_values() -> None:
+    requirement = Requirement(
+        text="Users can log in with email",
+        category="functional",
+        confidence="high",
+    )
+
+    assert requirement.confidence == "high"
+
+
+def test_invalid_requirement_confidence_raises() -> None:
+    with pytest.raises(ValidationError):
+        Requirement(
+            text="Users can log in",
+            category="functional",
+            confidence="unclear",
+        )
 
 
 def test_invalid_priority_raises() -> None:

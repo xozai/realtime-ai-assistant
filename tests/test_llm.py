@@ -1,7 +1,13 @@
 from __future__ import annotations
 
-from realtime_assistant.llm import validate_story_source_requirement_ids
-from realtime_assistant.models import Requirement, UserStory
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
+from realtime_assistant.llm import (
+    score_requirement_confidence,
+    validate_story_source_requirement_ids,
+)
+from realtime_assistant.models import DiscoverySession, Requirement, UserStory
 
 
 def make_story(source_requirement_ids: list[str]) -> UserStory:
@@ -47,3 +53,33 @@ def test_validate_story_source_requirement_ids_clears_ids_without_requirements()
     stories = validate_story_source_requirement_ids([make_story(["REQ-001"])], [])
 
     assert stories[0].source_requirement_ids == []
+
+
+def test_score_requirement_confidence_calls_openai_and_returns_score() -> None:
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="low"))]
+    )
+    session = DiscoverySession(requirements=make_requirements())
+
+    with patch("realtime_assistant.llm.OpenAI", return_value=mock_client), patch.dict(
+        "os.environ", {"OPENAI_API_KEY": "test-key"}
+    ):
+        score = score_requirement_confidence("Make login better", "functional", session)
+
+    assert score == "low"
+    mock_client.chat.completions.create.assert_called_once()
+
+
+def test_score_requirement_confidence_defaults_to_medium_for_unexpected_output() -> None:
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="unclear"))]
+    )
+
+    with patch("realtime_assistant.llm.OpenAI", return_value=mock_client), patch.dict(
+        "os.environ", {"OPENAI_API_KEY": "test-key"}
+    ):
+        score = score_requirement_confidence("Users can log in", "functional", DiscoverySession())
+
+    assert score == "medium"

@@ -58,10 +58,12 @@ def analyze_coverage(session: DiscoverySession) -> CoverageReport:
 
     total = len(session.requirements)
     coverage_pct = round(covered_count / total * 100, 1) if total else 0.0
+    low_confidence_count = sum(1 for req in session.requirements if req.confidence == "low")
 
     return CoverageReport(
         items=items,
         covered_count=covered_count,
         uncovered_count=uncovered_count,
+        low_confidence_count=low_confidence_count,
         coverage_pct=coverage_pct,
     )

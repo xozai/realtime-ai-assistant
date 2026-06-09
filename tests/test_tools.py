@@ -24,10 +24,13 @@ def setup_function() -> None:
 
 
 def test_capture_requirement_returns_success_and_appears_in_memory() -> None:
-    result = asyncio.run(capture_requirement("Users can log in with email", "functional"))
+    with patch("realtime_assistant.llm.score_requirement_confidence", return_value="high"):
+        result = asyncio.run(capture_requirement("Users can log in with email", "functional"))
     assert result["ok"] is True
     assert result["requirement"]["text"] == "Users can log in with email"
+    assert result["requirement"]["confidence"] == "high"
     assert memory.list_requirements()[0].text == "Users can log in with email"
+    assert memory.list_requirements()[0].confidence == "high"
 
 
 def test_ask_clarifying_question_returns_topic_and_question() -> None:
@@ -44,6 +47,31 @@ def test_summarize_requirements_returns_requirements_list() -> None:
     result = asyncio.run(summarize_requirements())
     assert "requirements" in result
     assert len(result["requirements"]) == 1
+
+
+def test_summarize_requirements_flags_low_confidence_items() -> None:
+    memory.add_requirement(
+        Requirement(
+            id="REQ-LOW",
+            text="Make auth better",
+            category="functional",
+            confidence="low",
+        )
+    )
+
+    with patch("realtime_assistant.tools.console") as mock_console:
+        result = asyncio.run(summarize_requirements())
+
+    printed_panels = [
+        call.args[0]
+        for call in mock_console.print.call_args_list
+        if getattr(call.args[0], "title", None)
+    ]
+    assert result["requirements"][0]["confidence"] == "low"
+    assert any(
+        panel.title == "Low-confidence requirements need clarification"
+        for panel in printed_panels
+    )
 
 
 def test_generate_user_stories_with_mocked_openai_response(mock_openai_response) -> None:
