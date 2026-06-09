@@ -21,8 +21,14 @@ from realtime_assistant.logging import (
     log_stories,
     logger,
 )
-from realtime_assistant.memory import memory
-from realtime_assistant.models import JiraConfig, RequirementCategory, SessionSummary, UserStory
+from realtime_assistant.memory import DEDUP_SIMILARITY_THRESHOLD, cosine_similarity, memory
+from realtime_assistant.models import (
+    JiraConfig,
+    Requirement,
+    RequirementCategory,
+    SessionSummary,
+    UserStory,
+)
 from realtime_assistant.transcript import TranscriptWriter
 
 ToolHandler = Callable[..., Awaitable[Any]]
@@ -143,11 +149,34 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         ),
         "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
     },
+    {
+        "type": "function",
+        "name": "dedupe_requirements",
+        "description": "Report semantically similar requirement pairs using stored embeddings.",
+        "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
 ]
 
 
 async def capture_requirement(requirement: str, category: RequirementCategory) -> dict[str, Any]:
-    captured = memory.create_requirement(requirement, category)
+    captured = Requirement(text=requirement.strip(), category=category)
+    embedding = await asyncio.to_thread(llm.get_embedding, captured.text)
+    captured = captured.model_copy(update={"embedding": embedding})
+
+    similar = memory.find_similar_requirement(embedding, DEDUP_SIMILARITY_THRESHOLD)
+    if similar is not None:
+        return {
+            "ok": True,
+            "merged": True,
+            "skipped": True,
+            "existing_requirement_id": similar.id,
+            "message": (
+                f"Skipped duplicate requirement; merged with existing requirement {similar.id}."
+            ),
+            "requirement_count": len(memory.list_requirements()),
+        }
+
+    memory.add_requirement(captured)
     confidence = await asyncio.to_thread(
         llm.score_requirement_confidence,
         captured.text,
@@ -158,6 +187,8 @@ async def capture_requirement(requirement: str, category: RequirementCategory) -
     log_requirement(captured)
     return {
         "ok": True,
+        "merged": False,
+        "skipped": False,
         "requirement": captured.model_dump(mode="json"),
         "requirement_count": len(memory.list_requirements()),
     }
@@ -337,6 +368,37 @@ async def analyze_story_coverage() -> dict[str, Any]:
     return {"ok": True, "coverage_report": report.model_dump(mode="json")}
 
 
+async def dedupe_requirements() -> dict[str, Any]:
+    requirements = memory.list_requirements()
+    duplicates: list[dict[str, Any]] = []
+
+    for left_index, left in enumerate(requirements):
+        if left.embedding is None:
+            continue
+        for right in requirements[left_index + 1 :]:
+            if right.embedding is None:
+                continue
+            similarity = cosine_similarity(left.embedding, right.embedding)
+            if similarity >= DEDUP_SIMILARITY_THRESHOLD:
+                duplicates.append(
+                    {
+                        "requirement_id": left.id,
+                        "similar_requirement_id": right.id,
+                        "similarity": round(similarity, 6),
+                        "requirement": left.text,
+                        "similar_requirement": right.text,
+                    }
+                )
+
+    return {
+        "ok": True,
+        "threshold": DEDUP_SIMILARITY_THRESHOLD,
+        "duplicate_pairs": duplicates,
+        "duplicate_pair_count": len(duplicates),
+        "requirement_count": len(requirements),
+    }
+
+
 FUNCTION_MAP: dict[str, ToolHandler] = {
     "capture_requirement": capture_requirement,
     "ask_clarifying_question": ask_clarifying_question,
@@ -346,6 +408,7 @@ FUNCTION_MAP: dict[str, ToolHandler] = {
     "submit_stories_to_jira": submit_stories_to_jira,
     "generate_session_summary": generate_session_summary,
     "analyze_story_coverage": analyze_story_coverage,
+    "dedupe_requirements": dedupe_requirements,
 }
 
 

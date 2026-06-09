@@ -24,6 +24,7 @@ class Requirement(BaseModel):
     text: str
     category: RequirementCategory
     confidence: RequirementConfidence = "medium"
+    embedding: list[float] | None = Field(default=None, exclude=True)
     captured_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 

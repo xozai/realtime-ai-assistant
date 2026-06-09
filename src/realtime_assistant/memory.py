@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import math
+import os
 from pathlib import Path
 
 from realtime_assistant.models import (
@@ -13,6 +15,16 @@ from realtime_assistant.models import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SESSIONS_DIR = PROJECT_ROOT / "sessions"
+
+
+def _dedup_similarity_threshold() -> float:
+    try:
+        return float(os.getenv("DEDUP_THRESHOLD", "0.85"))
+    except ValueError:
+        return 0.85
+
+
+DEDUP_SIMILARITY_THRESHOLD = _dedup_similarity_threshold()
 
 __all__ = [
     "SESSIONS_DIR",
@@ -34,6 +46,9 @@ __all__ = [
     "get_current_session",
     "get_requirement",
     "get_user_story",
+    "cosine_similarity",
+    "DEDUP_SIMILARITY_THRESHOLD",
+    "find_similar_requirement",
     "list_requirements",
     "list_user_stories",
     "load_session",
@@ -172,6 +187,19 @@ class SessionMemory:
         """Create and store a requirement from raw text and category."""
         requirement = Requirement(text=text.strip(), category=category)
         return self.add_requirement(requirement)
+
+    def find_similar_requirement(
+        self,
+        embedding: list[float],
+        threshold: float = DEDUP_SIMILARITY_THRESHOLD,
+    ) -> Requirement | None:
+        """Return the first stored requirement whose embedding meets the threshold."""
+        for requirement in self.session.requirements:
+            if requirement.embedding is None:
+                continue
+            if cosine_similarity(embedding, requirement.embedding) >= threshold:
+                return requirement
+        return None
 
     def add_requirement(self, requirement: Requirement) -> Requirement:
         """Store a requirement, overwriting an existing item with the same ID."""
@@ -351,6 +379,19 @@ class SessionMemory:
         return topic.strip().lower()
 
 
+def cosine_similarity(a: list[float], b: list[float]) -> float:
+    """Compute cosine similarity without third-party numeric dependencies."""
+    if not a or not b or len(a) != len(b):
+        return 0.0
+
+    dot_product = sum(left * right for left, right in zip(a, b, strict=True))
+    magnitude_a = math.sqrt(sum(value * value for value in a))
+    magnitude_b = math.sqrt(sum(value * value for value in b))
+    if magnitude_a == 0.0 or magnitude_b == 0.0:
+        return 0.0
+    return dot_product / (magnitude_a * magnitude_b)
+
+
 memory = SessionMemory()
 
 
@@ -420,6 +461,14 @@ def get_all_requirements() -> list[Requirement]:
 def get_requirement(requirement_id: str) -> Requirement | None:
     """Return one singleton requirement by ID."""
     return memory.get_requirement(requirement_id)
+
+
+def find_similar_requirement(
+    embedding: list[float],
+    threshold: float = DEDUP_SIMILARITY_THRESHOLD,
+) -> Requirement | None:
+    """Return a singleton requirement with an embedding above the threshold."""
+    return memory.find_similar_requirement(embedding, threshold)
 
 
 def update_requirement(
