@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.3.0...v0.4.0) (2026-06-09)
+
+
+### Features
+
+* reconnect dropped realtime sessions ([#32](https://github.com/xozai/realtime-ai-assistant/issues/32)) ([2747292](https://github.com/xozai/realtime-ai-assistant/commit/274729232742175d02e98f5ae03124273ca98ce4))
+* trace stories to source requirements ([1360775](https://github.com/xozai/realtime-ai-assistant/commit/13607757b2417850b016166e8dd0bf9e517c5173))
+
+
+### Bug Fixes
+
+* close transcript lifecycle and include session metadata ([#33](https://github.com/xozai/realtime-ai-assistant/issues/33)) ([fddbcbd](https://github.com/xozai/realtime-ai-assistant/commit/fddbcbd0248ead8075080d7bb2b1306aa09ea9cc))
+* expose memory singleton wrappers and story updates ([#36](https://github.com/xozai/realtime-ai-assistant/issues/36)) ([78fc418](https://github.com/xozai/realtime-ai-assistant/commit/78fc4182106265443f4706278aa2aee915359ba2))
+
 ## [0.3.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.2.1...v0.3.0) (2026-06-09)
 
 
