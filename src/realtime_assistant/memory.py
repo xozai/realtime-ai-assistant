@@ -1,8 +1,39 @@
 from __future__ import annotations
 
-from realtime_assistant.models import DiscoverySession, Requirement, RequirementCategory, UserStory
+from realtime_assistant.models import (
+    DiscoverySession,
+    Priority,
+    Requirement,
+    RequirementCategory,
+    UserStory,
+)
 
-__all__ = ["SessionMemory", "memory"]
+__all__ = [
+    "SessionMemory",
+    "add_requirement",
+    "add_user_story",
+    "clear_requirements",
+    "clear_user_stories",
+    "create_session",
+    "delete_requirement",
+    "delete_user_story",
+    "dump_session",
+    "get_all_requirements",
+    "get_all_user_stories",
+    "get_current_session",
+    "get_requirement",
+    "get_user_story",
+    "list_requirements",
+    "list_user_stories",
+    "memory",
+    "remove_requirement",
+    "remove_user_story",
+    "replace_user_stories",
+    "reset_session",
+    "set_user_stories",
+    "update_requirement",
+    "update_user_story",
+]
 
 
 class SessionMemory:
@@ -71,14 +102,25 @@ class SessionMemory:
         text: str | None = None,
         category: RequirementCategory | None = None,
     ) -> Requirement | None:
-        requirement = self.get_requirement(requirement_id)
-        if requirement is None:
+        requirement_index = self._requirement_index(requirement_id)
+        if requirement_index is None:
             return None
+
+        requirement = self.session.requirements[requirement_index]
+        data = requirement.model_dump()
         if text is not None:
-            requirement.text = text.strip()
+            data["text"] = text.strip()
         if category is not None:
-            requirement.category = category
-        return requirement
+            data["category"] = category
+        updated = Requirement.model_validate(data)
+        self.session.requirements[requirement_index] = updated
+        return updated
+
+    def _requirement_index(self, requirement_id: str) -> int | None:
+        for index, requirement in enumerate(self.session.requirements):
+            if requirement.id == requirement_id:
+                return index
+        return None
 
     def remove_requirement(self, requirement_id: str) -> bool:
         """Remove a requirement by ID and report whether anything changed."""
@@ -139,9 +181,52 @@ class SessionMemory:
         """Return generated user stories in insertion order."""
         return list(self.session.user_stories)
 
+    def get_all_user_stories(self) -> list[UserStory]:
+        """Compatibility alias for :meth:`list_user_stories`."""
+        return self.list_user_stories()
+
     def get_user_story(self, story_id: str) -> UserStory | None:
         """Return one user story by ID, or ``None`` when it is not present."""
         return next((story for story in self.session.user_stories if story.id == story_id), None)
+
+    def update_user_story(
+        self,
+        story_id: str,
+        *,
+        title: str | None = None,
+        as_a: str | None = None,
+        i_want: str | None = None,
+        so_that: str | None = None,
+        acceptance_criteria: list[str] | None = None,
+        priority: Priority | None = None,
+        story_points: int | None = None,
+    ) -> UserStory | None:
+        """Update a stored user story by ID and return the updated story."""
+        story_index = self._user_story_index(story_id)
+        if story_index is None:
+            return None
+
+        story = self.session.user_stories[story_index]
+        data = story.model_dump()
+        updates = {
+            "title": title,
+            "as_a": as_a,
+            "i_want": i_want,
+            "so_that": so_that,
+            "acceptance_criteria": acceptance_criteria,
+            "priority": priority,
+            "story_points": story_points,
+        }
+        data.update({key: value for key, value in updates.items() if value is not None})
+        updated = UserStory.model_validate(data)
+        self.session.user_stories[story_index] = updated
+        return updated
+
+    def _user_story_index(self, story_id: str) -> int | None:
+        for index, story in enumerate(self.session.user_stories):
+            if story.id == story_id:
+                return index
+        return None
 
     def remove_user_story(self, story_id: str) -> bool:
         """Remove a user story by ID and report whether anything changed."""
@@ -165,3 +250,137 @@ class SessionMemory:
 
 
 memory = SessionMemory()
+
+
+def get_current_session() -> DiscoverySession:
+    """Return the active singleton discovery session."""
+    return memory.get_current_session()
+
+
+def create_session(session: DiscoverySession | None = None) -> DiscoverySession:
+    """Start a new singleton discovery session."""
+    return memory.create_session(session)
+
+
+def reset_session() -> DiscoverySession:
+    """Reset the singleton discovery session."""
+    return memory.reset_session()
+
+
+def dump_session(*, mode: str = "json") -> dict:
+    """Serialize the active singleton discovery session."""
+    return memory.dump_session(mode=mode)
+
+
+def add_requirement(requirement: Requirement) -> Requirement:
+    """Store a requirement in the singleton session."""
+    return memory.add_requirement(requirement)
+
+
+def list_requirements() -> list[Requirement]:
+    """Return all requirements from the singleton session."""
+    return memory.list_requirements()
+
+
+def get_all_requirements() -> list[Requirement]:
+    """Return all requirements from the singleton session."""
+    return memory.get_all_requirements()
+
+
+def get_requirement(requirement_id: str) -> Requirement | None:
+    """Return one singleton requirement by ID."""
+    return memory.get_requirement(requirement_id)
+
+
+def update_requirement(
+    requirement_id: str,
+    *,
+    text: str | None = None,
+    category: RequirementCategory | None = None,
+) -> Requirement | None:
+    """Update one singleton requirement by ID."""
+    return memory.update_requirement(requirement_id, text=text, category=category)
+
+
+def remove_requirement(requirement_id: str) -> bool:
+    """Remove one singleton requirement by ID."""
+    return memory.remove_requirement(requirement_id)
+
+
+def delete_requirement(requirement_id: str) -> bool:
+    """Compatibility alias for :func:`remove_requirement`."""
+    return remove_requirement(requirement_id)
+
+
+def clear_requirements() -> None:
+    """Remove all singleton requirements."""
+    memory.clear_requirements()
+
+
+def set_user_stories(stories: list[UserStory]) -> None:
+    """Replace all singleton user stories."""
+    memory.set_user_stories(stories)
+
+
+def replace_user_stories(stories: list[UserStory]) -> None:
+    """Compatibility alias for :func:`set_user_stories`."""
+    memory.replace_user_stories(stories)
+
+
+def add_user_story(story: UserStory) -> UserStory:
+    """Store a user story in the singleton session."""
+    return memory.add_user_story(story)
+
+
+def list_user_stories() -> list[UserStory]:
+    """Return all user stories from the singleton session."""
+    return memory.list_user_stories()
+
+
+def get_all_user_stories() -> list[UserStory]:
+    """Return all user stories from the singleton session."""
+    return memory.get_all_user_stories()
+
+
+def get_user_story(story_id: str) -> UserStory | None:
+    """Return one singleton user story by ID."""
+    return memory.get_user_story(story_id)
+
+
+def update_user_story(
+    story_id: str,
+    *,
+    title: str | None = None,
+    as_a: str | None = None,
+    i_want: str | None = None,
+    so_that: str | None = None,
+    acceptance_criteria: list[str] | None = None,
+    priority: Priority | None = None,
+    story_points: int | None = None,
+) -> UserStory | None:
+    """Update one singleton user story by ID."""
+    return memory.update_user_story(
+        story_id,
+        title=title,
+        as_a=as_a,
+        i_want=i_want,
+        so_that=so_that,
+        acceptance_criteria=acceptance_criteria,
+        priority=priority,
+        story_points=story_points,
+    )
+
+
+def remove_user_story(story_id: str) -> bool:
+    """Remove one singleton user story by ID."""
+    return memory.remove_user_story(story_id)
+
+
+def delete_user_story(story_id: str) -> bool:
+    """Compatibility alias for :func:`remove_user_story`."""
+    return remove_user_story(story_id)
+
+
+def clear_user_stories() -> None:
+    """Remove all singleton user stories."""
+    memory.clear_user_stories()
