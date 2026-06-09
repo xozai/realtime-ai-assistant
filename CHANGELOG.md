@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.4.0...v0.5.0) (2026-06-09)
+
+
+### Features
+
+* persist and resume discovery sessions ([#38](https://github.com/xozai/realtime-ai-assistant/issues/38)) ([f3837fd](https://github.com/xozai/realtime-ai-assistant/commit/f3837fdcbca4f44dfb60dbedd8c28edbb26b6d95))
+
 ## [0.4.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.3.0...v0.4.0) (2026-06-09)
 
 
