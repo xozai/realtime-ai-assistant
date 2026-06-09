@@ -186,6 +186,13 @@ DASHBOARD_HTML = """<!doctype html>
       color: #e5e7eb;
     }
 
+    .source-list {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
     .muted {
       color: var(--muted);
       font-size: 13px;
@@ -338,6 +345,10 @@ DASHBOARD_HTML = """<!doctype html>
             <p><strong>As a</strong> ${escapeHtml(story.as_a)}</p>
             <p><strong>I want</strong> ${escapeHtml(story.i_want)}</p>
             <p><strong>So that</strong> ${escapeHtml(story.so_that)}</p>
+          </div>
+          <div class="source-list">
+            <span class="muted">Source</span>
+            ${(story.source_requirement_ids || []).map((id) => `<span class="badge">${escapeHtml(id)}</span>`).join("") || '<span class="muted">None</span>'}
           </div>
           <ul>${(story.acceptance_criteria || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
           <span class="badge priority">${escapeHtml(story.priority)}</span>

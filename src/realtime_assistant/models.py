@@ -24,9 +24,24 @@ class UserStory(BaseModel):
     as_a: str = Field(description="The role or persona.")
     i_want: str = Field(description="The capability or goal.")
     so_that: str = Field(description="The business or user benefit.")
+    source_requirement_ids: list[str] = Field(
+        description="Stable requirement IDs that produced this story."
+    )
     acceptance_criteria: list[str] = Field(default_factory=list)
     priority: Priority
     story_points: int
+
+    @field_validator("source_requirement_ids")
+    @classmethod
+    def validate_source_requirement_ids(cls, value: list[str]) -> list[str]:
+        deduped: list[str] = []
+        for requirement_id in value:
+            normalized = requirement_id.strip()
+            if not normalized:
+                raise ValueError("source_requirement_ids cannot include blank IDs")
+            if normalized not in deduped:
+                deduped.append(normalized)
+        return deduped
 
     @field_validator("story_points")
     @classmethod

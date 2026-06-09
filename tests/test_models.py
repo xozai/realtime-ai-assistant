@@ -19,7 +19,41 @@ def test_user_story_valid_instantiation(sample_user_story: UserStory) -> None:
     assert sample_user_story.title == "Email login"
     assert sample_user_story.priority == "must-have"
     assert sample_user_story.story_points == 3
+    assert sample_user_story.source_requirement_ids == ["REQ-001"]
     assert len(sample_user_story.acceptance_criteria) == 2
+
+
+def test_user_story_source_requirement_ids_are_required() -> None:
+    with pytest.raises(ValidationError):
+        UserStory(
+            id="US-001",
+            title="Missing source IDs",
+            as_a="user",
+            i_want="a feature",
+            so_that="I get value",
+            priority="must-have",
+            story_points=3,
+        )
+
+
+def test_user_story_schema_requires_source_requirement_ids() -> None:
+    schema = UserStory.model_json_schema()
+
+    assert "source_requirement_ids" in schema["required"]
+
+
+def test_user_story_source_requirement_ids_reject_blank_values() -> None:
+    with pytest.raises(ValidationError):
+        UserStory(
+            id="US-001",
+            title="Blank source ID",
+            as_a="user",
+            i_want="a feature",
+            so_that="I get value",
+            source_requirement_ids=["REQ-001", " "],
+            priority="must-have",
+            story_points=3,
+        )
 
 
 def test_invalid_requirement_category_raises() -> None:
@@ -35,6 +69,7 @@ def test_invalid_priority_raises() -> None:
             as_a="user",
             i_want="a feature",
             so_that="I get value",
+            source_requirement_ids=["REQ-001"],
             priority="urgent",
             story_points=3,
         )
@@ -48,6 +83,7 @@ def test_story_points_accepts_fibonacci_values(points: int) -> None:
         as_a="user",
         i_want="a feature",
         so_that="I get value",
+        source_requirement_ids=["REQ-001"],
         priority="must-have",
         story_points=points,
     )
@@ -63,6 +99,7 @@ def test_story_points_rejects_non_fibonacci_values(points: int) -> None:
             as_a="user",
             i_want="a feature",
             so_that="I get value",
+            source_requirement_ids=["REQ-001"],
             priority="must-have",
             story_points=points,
         )

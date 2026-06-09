@@ -13,6 +13,7 @@ def test_export_to_json_writes_valid_file(sample_user_story: UserStory) -> None:
     assert path == export.JSON_PATH
     assert payload["user_stories"][0]["title"] == "Email login"
     assert payload["user_stories"][0]["priority"] == "must-have"
+    assert payload["user_stories"][0]["source_requirement_ids"] == ["REQ-001"]
     assert "Given a registered user" in payload["user_stories"][0]["acceptance_criteria"][0]
 
 
@@ -31,6 +32,7 @@ def test_export_to_markdown_writes_valid_file(sample_user_story: UserStory) -> N
     assert path == export.MARKDOWN_PATH
     assert "Email login" in content
     assert "**Priority:** must-have" in content
+    assert "**Source Requirements:** REQ-001" in content
     assert "Given a registered user" in content
 
 
@@ -41,6 +43,7 @@ def test_format_user_story_markdown_is_testable_without_file_io(
 
     assert content.startswith("## US-001: Email login")
     assert "**Story Points:** 3" in content
+    assert "**Source Requirements:** REQ-001" in content
     assert "- Given a registered user" in content
 
 

@@ -5,7 +5,8 @@ from realtime_assistant.models import Requirement
 STORY_GENERATION_PROMPT = """Generate Agile user stories from captured software requirements.
 
 Return structured data only. Each story must include an Agile persona, goal, benefit,
-testable acceptance criteria, MoSCoW-style priority, and Fibonacci story points.
+source requirement IDs, testable acceptance criteria, MoSCoW-style priority, and
+Fibonacci story points.
 """
 
 
@@ -47,6 +48,8 @@ Rules:
 - Return only structured data that matches the schema.
 - Create clear, implementation-ready user stories.
 - Use Agile format fields: as_a, i_want, so_that.
+- Set source_requirement_ids to one or more exact requirement IDs from the list above for every story.
+- If no requirements are captured, set source_requirement_ids to an empty list.
 - Acceptance criteria must be testable and specific.
 - Priority must be one of: must-have, should-have, could-have, wont-have.
 - Story points must be Fibonacci only: 1, 2, 3, 5, 8, or 13.

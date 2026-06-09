@@ -57,6 +57,7 @@ def test_get_stories_with_data(sample_user_story: UserStory) -> None:
     payload = response.json()
     assert len(payload) == 1
     assert payload[0]["title"] == sample_user_story.title
+    assert payload[0]["source_requirement_ids"] == ["REQ-001"]
 
 
 def test_get_session_returns_summary() -> None:
@@ -84,3 +85,10 @@ def test_root_html_contains_auto_refresh() -> None:
     response = client.get("/")
 
     assert "setInterval" in response.text or "fetch" in response.text
+
+
+def test_root_html_renders_story_source_requirements() -> None:
+    response = client.get("/")
+
+    assert "source_requirement_ids" in response.text
+    assert "Source" in response.text
