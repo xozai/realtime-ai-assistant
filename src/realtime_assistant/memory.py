@@ -21,6 +21,7 @@ __all__ = [
     "add_user_story",
     "clear_requirements",
     "clear_user_stories",
+    "configure_export_options",
     "create_session",
     "delete_requirement",
     "delete_user_story",
@@ -56,6 +57,8 @@ class SessionMemory:
     def __init__(self, session: DiscoverySession | None = None) -> None:
         self.session = session or DiscoverySession()
         self.clarified_topics: set[str] = set()
+        self.export_output_dir: Path | None = None
+        self.export_name = "user_stories"
 
     def get_current_session(self) -> DiscoverySession:
         """Return the active discovery session."""
@@ -66,6 +69,16 @@ class SessionMemory:
         self.session = session or DiscoverySession()
         self.clear_clarified_topics()
         return self.session
+
+    def configure_export_options(
+        self,
+        *,
+        output_dir: Path | str | None = None,
+        export_name: str | None = None,
+    ) -> None:
+        """Set default export destination options for tool calls in this session."""
+        self.export_output_dir = Path(output_dir) if output_dir is not None else None
+        self.export_name = export_name or "user_stories"
 
     def reset_session(self) -> DiscoverySession:
         """Replace the active session with a fresh empty discovery session."""
@@ -460,3 +473,12 @@ def delete_user_story(story_id: str) -> bool:
 def clear_user_stories() -> None:
     """Remove all singleton user stories."""
     memory.clear_user_stories()
+
+
+def configure_export_options(
+    *,
+    output_dir: Path | str | None = None,
+    export_name: str | None = None,
+) -> None:
+    """Set singleton export destination options."""
+    memory.configure_export_options(output_dir=output_dir, export_name=export_name)

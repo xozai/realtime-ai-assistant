@@ -81,6 +81,8 @@ python src/realtime_assistant/main.py --prompts "We need a task manager|Users ne
 | `--dashboard-port PORT` | `8000` | Dashboard port |
 | `--resume SESSION_ID` | unset | Load `sessions/SESSION_ID.json` before connecting |
 | `--session-id SESSION_ID` | generated | Start a new session with a known ID |
+| `--output-dir PATH` | `exports/` | Directory for generated JSON and Markdown exports |
+| `--export-name NAME` | `user_stories` | Base filename for generated exports, without extension |
 
 ---
 
@@ -123,7 +125,7 @@ The Realtime session registers these tools with the model:
 | `ask_clarifying_question(topic, question)` | Log a clarifying question |
 | `summarize_requirements()` | Print all captured requirements to terminal |
 | `generate_user_stories()` | Produce structured `UserStory` objects via Chat Completions |
-| `export_user_stories(format)` | Write `user_stories.json` and `user_stories.md` |
+| `export_user_stories(format, output_dir, export_name)` | Write JSON and Markdown exports; destination fields are optional |
 | `submit_stories_to_jira(project_key)` | Create Jira Story issues for each story |
 
 When the model calls a tool, `main.py` receives the function-call event, dispatches it through `dispatch_tool` in `tools.py`, writes the result back to the conversation, and asks the model to continue.
@@ -219,7 +221,20 @@ US-004  Share A Project With Collaborators could-have   8 pts
 
 ## Sample Output
 
-Pre-populated fictional output lives at `user_stories.md` and `user_stories.json`.
+Pre-populated fictional sample output lives at `user_stories.md` and `user_stories.json`.
+Generated exports are written to `exports/<session_id>/user_stories.json` and
+`exports/<session_id>/user_stories.md` by default, so normal sessions do not
+overwrite the root sample files. Use `--output-dir PATH` to choose another
+export directory and `--export-name NAME` to choose a different base filename.
+
+For example:
+
+```bash
+python src/realtime_assistant/main.py --session-id DISC-001 --output-dir ./artifacts --export-name backlog
+```
+
+Exporting both formats in that session creates `artifacts/DISC-001/backlog.json`
+and `artifacts/DISC-001/backlog.md`.
 A generated Markdown story looks like:
 
 ```markdown

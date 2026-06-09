@@ -241,6 +241,7 @@ DASHBOARD_HTML = """<!doctype html>
       border: 1px solid var(--border);
       border-radius: 8px;
       box-shadow: 0 18px 42px rgba(0, 0, 0, 0.36);
+      white-space: pre-line;
       opacity: 0;
       transform: translateY(8px);
       transition: opacity 160ms ease, transform 160ms ease;
@@ -375,7 +376,8 @@ DASHBOARD_HTML = """<!doctype html>
     document.querySelector("#export-button").addEventListener("click", async () => {
       const response = await fetch("/api/export", { method: "POST" });
       const result = await response.json();
-      showToast(result.ok ? `Exported ${result.story_count} stories` : `Export failed: ${result.error || "unknown error"}`);
+      const paths = (result.paths || []).join("\\n");
+      showToast(result.ok ? `Exported ${result.story_count} stories\\n${paths}` : `Export failed: ${result.error || "unknown error"}`);
     });
 
     document.querySelector("#jira-button").addEventListener("click", async () => {

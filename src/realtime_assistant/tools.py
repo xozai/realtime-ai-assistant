@@ -83,7 +83,19 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                     "type": "string",
                     "enum": ["all", "both", "json", "markdown", "md"],
                     "description": "Export format. Use all or both to write JSON and Markdown files.",
-                }
+                },
+                "output_dir": {
+                    "type": "string",
+                    "description": (
+                        "Optional export directory. Defaults to the session export directory."
+                    ),
+                },
+                "export_name": {
+                    "type": "string",
+                    "description": (
+                        "Optional base filename without extension. Defaults to user_stories."
+                    ),
+                },
             },
             "required": ["format"],
             "additionalProperties": False,
@@ -156,11 +168,27 @@ async def generate_user_stories() -> list[UserStory]:
     return stories
 
 
-async def export_user_stories(format: str = "all") -> dict[str, Any]:
+async def export_user_stories(
+    format: str = "all",
+    output_dir: str | None = None,
+    export_name: str | None = None,
+) -> dict[str, Any]:
     stories = memory.list_user_stories()
-    paths = story_export.export_user_stories(stories, format)
-    logger.info("Exported user stories: %s", ", ".join(str(path) for path in paths))
-    return {"ok": True, "paths": [str(path) for path in paths], "story_count": len(stories)}
+    session = memory.get_current_session()
+    paths = story_export.export_user_stories(
+        stories,
+        format,
+        output_dir=output_dir or memory.export_output_dir or story_export.EXPORTS_DIR,
+        export_name=export_name or memory.export_name,
+        session_id=session.session_id,
+    )
+    absolute_paths = [path.resolve() for path in paths]
+    logger.info("Exported user stories: %s", ", ".join(str(path) for path in absolute_paths))
+    return {
+        "ok": True,
+        "paths": [str(path) for path in absolute_paths],
+        "story_count": len(stories),
+    }
 
 
 async def submit_stories_to_jira(project_key: str) -> dict[str, Any]:
