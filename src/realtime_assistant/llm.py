@@ -17,6 +17,13 @@ from realtime_assistant.models import (
 from realtime_assistant.prompts import story_generation_prompt
 
 
+def get_embedding(text: str) -> list[float]:
+    """Return an embedding vector for requirement deduplication."""
+    client = OpenAI()
+    response = client.embeddings.create(model="text-embedding-3-small", input=text)
+    return list(response.data[0].embedding)
+
+
 def validate_story_source_requirement_ids(
     stories: list[UserStory], requirements: list[Requirement]
 ) -> list[UserStory]:

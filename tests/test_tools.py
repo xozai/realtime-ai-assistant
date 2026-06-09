@@ -24,7 +24,10 @@ def setup_function() -> None:
 
 
 def test_capture_requirement_returns_success_and_appears_in_memory() -> None:
-    with patch("realtime_assistant.llm.score_requirement_confidence", return_value="high"):
+    with (
+        patch("realtime_assistant.tools.llm.get_embedding", return_value=[1.0, 0.0]),
+        patch("realtime_assistant.llm.score_requirement_confidence", return_value="high"),
+    ):
         result = asyncio.run(capture_requirement("Users can log in with email", "functional"))
     assert result["ok"] is True
     assert result["requirement"]["text"] == "Users can log in with email"
