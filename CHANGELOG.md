@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.6.0...v0.7.0) (2026-06-09)
+
+
+### Features
+
+* edit requirements and stories from dashboard ([#42](https://github.com/xozai/realtime-ai-assistant/issues/42)) ([e8d234a](https://github.com/xozai/realtime-ai-assistant/commit/e8d234aca6bb39dcc3cb83653fb66c6aa1bf971d))
+
 ## [0.6.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.5.0...v0.6.0) (2026-06-09)
 
 
