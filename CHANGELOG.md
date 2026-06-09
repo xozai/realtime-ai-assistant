@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.9.0...v0.10.0) (2026-06-09)
+
+
+### Features
+
+* add requirement coverage and gap analysis ([#20](https://github.com/xozai/realtime-ai-assistant/issues/20)) ([#47](https://github.com/xozai/realtime-ai-assistant/issues/47)) ([917043a](https://github.com/xozai/realtime-ai-assistant/commit/917043af5e81aa0344bf2b797f91dafa85ebda90))
+
 ## [0.9.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.8.0...v0.9.0) (2026-06-09)
 
 
