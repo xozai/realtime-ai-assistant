@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pydantic import TypeAdapter
 
-from realtime_assistant.models import SessionSummary, UserStory
+from realtime_assistant.models import CoverageReport, SessionSummary, UserStory
 
 __all__ = [
     "EXPORTS_DIR",

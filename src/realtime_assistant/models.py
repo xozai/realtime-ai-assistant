@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 
 RequirementCategory = Literal["functional", "non-functional", "constraint", "assumption"]
 Priority = Literal["must-have", "should-have", "could-have", "wont-have"]
+CoverageStatus = Literal["covered", "uncovered", "no-stories-yet"]
 
 
 class Requirement(BaseModel):
@@ -56,6 +57,29 @@ class UserStorySet(BaseModel):
     user_stories: list[UserStory]
 
 
+class RequirementCoverage(BaseModel):
+    """Coverage status for a single requirement."""
+
+    requirement_id: str
+    text: str
+    category: RequirementCategory
+    status: CoverageStatus
+    story_ids: list[str] = Field(
+        default_factory=list,
+        description="IDs of user stories that cite this requirement.",
+    )
+
+
+class CoverageReport(BaseModel):
+    """Requirement-to-story coverage analysis for a discovery session."""
+
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    items: list[RequirementCoverage] = Field(default_factory=list)
+    covered_count: int = 0
+    uncovered_count: int = 0
+    coverage_pct: float = 0.0
+
+
 class SessionSummary(BaseModel):
     """Structured executive summary of a discovery call."""
 
@@ -93,3 +117,4 @@ class DiscoverySession(BaseModel):
     requirements: list[Requirement] = Field(default_factory=list)
     user_stories: list[UserStory] = Field(default_factory=list)
     summary: SessionSummary | None = None
+    coverage_report: CoverageReport | None = None

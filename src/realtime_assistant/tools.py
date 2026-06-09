@@ -10,6 +10,7 @@ from rich.table import Table
 
 from realtime_assistant import export as story_export
 from realtime_assistant import llm
+from realtime_assistant.coverage import analyze_coverage
 from realtime_assistant.jira_client import JiraClient
 from realtime_assistant.logging import (
     console,
@@ -130,6 +131,16 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         ),
         "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
     },
+    {
+        "type": "function",
+        "name": "analyze_story_coverage",
+        "description": (
+            "Analyze which captured requirements are covered by generated user stories. "
+            "Returns a coverage report with covered, uncovered, and no-stories-yet statuses. "
+            "Call this after generate_user_stories to check for gaps before Jira submission."
+        ),
+        "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
 ]
 
 
@@ -223,6 +234,25 @@ async def submit_stories_to_jira(project_key: str) -> dict[str, Any]:
                 "error": "No user stories in memory. Run generate_user_stories first.",
             }
 
+        # Warn if uncovered must-have requirements exist
+        session = memory.get_current_session()
+        if session.coverage_report is not None:
+            uncovered_must_haves = [
+                item.requirement_id
+                for item in session.coverage_report.items
+                if item.status == "uncovered"
+                and any(
+                    req.id == item.requirement_id and req.category == "functional"
+                    for req in session.requirements
+                )
+            ]
+            if uncovered_must_haves:
+                console.print(
+                    "[yellow]⚠ Warning: submitting to Jira with uncovered requirements: "
+                    + ", ".join(uncovered_must_haves)
+                    + ". Consider running analyze_story_coverage first.[/yellow]"
+                )
+
         created_issues = [client.create_issue(project_key, story) for story in stories]
     except Exception as exc:
         return {"ok": False, "error": f"Failed to submit stories to Jira: {exc}"}
@@ -257,6 +287,28 @@ async def generate_session_summary() -> dict[str, Any]:
     return {"ok": True, "summary": summary.model_dump(mode="json")}
 
 
+async def analyze_story_coverage() -> dict[str, Any]:
+    session = memory.get_current_session()
+    report = analyze_coverage(session)
+    memory.session = session.model_copy(update={"coverage_report": report})
+
+    uncovered = [item for item in report.items if item.status == "uncovered"]
+    if uncovered:
+        console.print(
+            f"[yellow]Coverage: {report.coverage_pct}% "
+            f"({report.covered_count}/{len(report.items)} requirements covered). "
+            f"{len(uncovered)} uncovered: "
+            + ", ".join(item.requirement_id for item in uncovered)
+            + "[/yellow]"
+        )
+    else:
+        console.print(
+            f"[green]Coverage: {report.coverage_pct}% — all requirements covered.[/green]"
+        )
+
+    return {"ok": True, "coverage_report": report.model_dump(mode="json")}
+
+
 FUNCTION_MAP: dict[str, ToolHandler] = {
     "capture_requirement": capture_requirement,
     "ask_clarifying_question": ask_clarifying_question,
@@ -265,6 +317,7 @@ FUNCTION_MAP: dict[str, ToolHandler] = {
     "export_user_stories": export_user_stories,
     "submit_stories_to_jira": submit_stories_to_jira,
     "generate_session_summary": generate_session_summary,
+    "analyze_story_coverage": analyze_story_coverage,
 }
 
 
