@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.15.0...v0.16.0) (2026-06-10)
+
+
+### Features
+
+* preview Jira submissions ([#70](https://github.com/xozai/realtime-ai-assistant/issues/70)) ([3148504](https://github.com/xozai/realtime-ai-assistant/commit/31485045d797bfa6ef92d40da4bb6de7c99cb4b4))
+
 ## [0.15.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.14.2...v0.15.0) (2026-06-10)
 
 
