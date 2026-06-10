@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.1](https://github.com/xozai/realtime-ai-assistant/compare/v0.18.0...v0.18.1) (2026-06-10)
+
+
+### Documentation
+
+* refresh README for sprint 3 features ([#76](https://github.com/xozai/realtime-ai-assistant/issues/76)) ([893d309](https://github.com/xozai/realtime-ai-assistant/commit/893d309452e633279407895fb8d1ee66db9ebfc6))
+
 ## [0.18.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.17.0...v0.18.0) (2026-06-10)
 
 
