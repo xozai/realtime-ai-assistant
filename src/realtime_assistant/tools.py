@@ -15,6 +15,7 @@ from realtime_assistant import export as story_export
 from realtime_assistant import llm
 from realtime_assistant.config import get_settings
 from realtime_assistant.coverage import analyze_coverage
+from realtime_assistant.events import event_bus
 from realtime_assistant.jira_client import JiraClient
 from realtime_assistant.logging import (
     console,
@@ -222,6 +223,11 @@ async def capture_requirement(requirement: str, category: RequirementCategory) -
     )
     captured.confidence = confidence
     log_requirement(captured)
+    await event_bus.publish(
+        "requirement_captured",
+        requirement_id=captured.id,
+        requirement=captured.model_dump(mode="json"),
+    )
     return {
         "ok": True,
         "merged": False,
@@ -286,6 +292,11 @@ async def generate_user_stories() -> list[UserStory]:
     )
     memory.set_user_stories(stories)
     log_stories(stories)
+    await event_bus.publish(
+        "stories_generated",
+        story_count=len(stories),
+        story_ids=[story.id for story in stories],
+    )
     return stories
 
 
@@ -326,6 +337,12 @@ async def refine_user_story(
     if updated is None:
         return {"ok": False, "error": f"User story {story_id} not found."}
     log_stories([updated])
+    await event_bus.publish(
+        "story_refined",
+        story_id=updated.id,
+        story=updated.model_dump(mode="json"),
+        history_count=len(memory.get_current_session().story_refinement_history),
+    )
     return {
         "ok": True,
         "story": updated.model_dump(mode="json"),
@@ -372,11 +389,18 @@ async def export_user_stories(
     )
     absolute_paths = [path.resolve() for path in paths]
     logger.info("Exported user stories: %s", ", ".join(str(path) for path in absolute_paths))
-    return {
+    result = {
         "ok": True,
         "paths": [str(path) for path in absolute_paths],
         "story_count": len(stories),
     }
+    await event_bus.publish(
+        "export_completed",
+        ok=result["ok"],
+        paths=result["paths"],
+        story_count=result["story_count"],
+    )
+    return result
 
 
 async def submit_stories_to_jira(
@@ -460,7 +484,7 @@ async def submit_stories_to_jira(
                 }
                 for story in stories
             ]
-            return {
+            response = {
                 "ok": True,
                 "dry_run": True,
                 "project_key": project_key,
@@ -472,6 +496,17 @@ async def submit_stories_to_jira(
                 "failure_count": 0,
                 "skipped_count": len(stories),
             }
+            await event_bus.publish(
+                "jira_submission_completed",
+                ok=response["ok"],
+                dry_run=response["dry_run"],
+                project_key=response["project_key"],
+                total_count=response["total_count"],
+                success_count=response["success_count"],
+                failure_count=response["failure_count"],
+                skipped_count=response["skipped_count"],
+            )
+            return response
 
         results: list[dict[str, Any]] = []
         created_issues: list[str] = []
@@ -517,6 +552,16 @@ async def submit_stories_to_jira(
     }
     if failure_count:
         response["error"] = f"{failure_count} Jira issue submission failed."
+    await event_bus.publish(
+        "jira_submission_completed",
+        ok=response["ok"],
+        dry_run=response["dry_run"],
+        project_key=response["project_key"],
+        total_count=response["total_count"],
+        success_count=response["success_count"],
+        failure_count=response["failure_count"],
+        skipped_count=response["skipped_count"],
+    )
     return response
 
 
