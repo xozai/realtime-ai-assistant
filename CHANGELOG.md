@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.16.0...v0.17.0) (2026-06-10)
+
+
+### Features
+
+* refine selected user stories ([#72](https://github.com/xozai/realtime-ai-assistant/issues/72)) ([0a15540](https://github.com/xozai/realtime-ai-assistant/commit/0a15540f65ed01e4ff71a6b951d3306911a93ffc))
+
 ## [0.16.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.15.0...v0.16.0) (2026-06-10)
 
 
