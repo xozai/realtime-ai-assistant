@@ -30,6 +30,10 @@ Inspired by [`disler/poc-realtime-ai-assistant`](https://github.com/disler/poc-r
 | Requirement deduplication via embeddings | ✅ Shipped |
 | Session token and cost tracking | ✅ Shipped |
 | Multi-product support (isolated sessions per project) | ✅ Shipped |
+| Configurable story-generation model (`--story-model`, `STORY_GENERATION_MODEL`) | ✅ Shipped |
+| Jira dry-run preview + partial failure reporting | ✅ Shipped |
+| Selective single-story refinement with history | ✅ Shipped |
+| Realtime dashboard updates via Server-Sent Events | ✅ Shipped |
 
 ---
 
@@ -159,8 +163,17 @@ Open: **http://localhost:8000**
 | `POST` | `/api/summary/generate` | Generate and store executive summary via LLM |
 | `GET` | `/api/coverage` | Requirement coverage report (coverage %, uncovered list, low-confidence count) |
 | `GET` | `/api/session` | Session ID, project key, start time, counts, token costs |
+| `GET` | `/api/events` | Server-Sent Events stream for dashboard updates and keep-alives |
 | `POST` | `/api/export` | Export stories to JSON + Markdown |
 | `POST` | `/api/jira/{project_key}` | Submit stories to Jira; pass `?dry_run=true` to preview payloads without creating issues |
+
+---
+
+### Realtime dashboard updates
+
+The dashboard opens an `EventSource` connection to `GET /api/events`. Tool handlers publish compact events whenever session state changes, including requirement capture, story generation, selective story refinement, exports, and Jira submissions. Each event includes a session snapshot so the browser can refresh counts immediately without waiting for the next polling interval.
+
+If the SSE connection is unavailable or reconnecting, the dashboard keeps the existing REST polling fallback so the UI continues to update in constrained browser or proxy environments.
 
 ---
 
@@ -392,6 +405,7 @@ realtime-ai-assistant/
 │       ├── prompts.py       # SYSTEM_PROMPT (includes low-confidence re-ask guidance)
 │       ├── export.py        # JSON + Markdown export (includes coverage + confidence)
 │       ├── coverage.py      # CoverageReport, analyze_coverage()
+│       ├── events.py        # Dashboard event bus + Server-Sent Events serialization
 │       ├── transcript.py    # TranscriptWriter (JSON + Markdown, project-scoped paths)
 │       ├── jira_client.py   # JiraClient (stdlib urllib)
 │       ├── audio.py         # MicrophoneStream + SpeakerStream
@@ -405,6 +419,7 @@ realtime-ai-assistant/
     ├── test_tools.py              # Tool handlers (mocked OpenAI + embeddings)
     ├── test_dedup.py              # Deduplication: duplicate pair skipped, distinct pair stored
     ├── test_coverage.py           # Coverage report, low_confidence_count
+    ├── test_events.py             # Dashboard event payloads, SSE formatting, subscriber delivery
     ├── test_llm.py                # Story generation, confidence scoring, cost accumulation
     ├── test_prompts.py            # SYSTEM_PROMPT assertions
     ├── test_jira_client.py        # JiraClient HTTP (mocked)
@@ -436,6 +451,7 @@ pytest tests/ -v
 | `test_tools.py` | Tool handlers (mocked OpenAI, embeddings, confidence scorer) |
 | `test_dedup.py` | Duplicate pair skipped; distinct pair stored; pairwise dedupe report |
 | `test_coverage.py` | Coverage report generation, `low_confidence_count` field |
+| `test_events.py` | Dashboard event payloads, SSE frame formatting, subscriber delivery |
 | `test_llm.py` | Story generation, confidence scoring, chat usage accumulation |
 | `test_prompts.py` | SYSTEM_PROMPT content assertions |
 | `test_jira_client.py` | JiraClient HTTP (mocked), priority mapping |
@@ -447,9 +463,9 @@ pytest tests/ -v
 | `test_transcript.py` | Transcript write, speaker labels, project-scoped paths |
 | `test_session_persistence.py` | Session save/load/resume, multi-project isolation, flat-path fallback |
 | `test_summary.py` | Executive summary generation and storage |
-| `test_dashboard.py` | All FastAPI endpoints via TestClient, cost + project fields |
+| `test_dashboard.py` | All FastAPI endpoints via TestClient, cost/project fields, SSE update path |
 
-**Current count: 153 passing, 0 failures.**
+**Current count: 177 passing, 0 failures.**
 
 ---
 
