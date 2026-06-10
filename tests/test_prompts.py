@@ -41,3 +41,18 @@ def test_story_generation_prompt_allows_empty_source_ids_without_requirements() 
 
     assert "- No requirements captured." in prompt
     assert "set source_requirement_ids to an empty list" in prompt
+
+
+def test_story_refinement_prompt_includes_feedback_and_requirement_context(
+    sample_user_story,
+) -> None:
+    prompt = prompts.story_refinement_prompt(
+        sample_user_story,
+        [Requirement(id="REQ-001", text="Users can log in", category="functional")],
+        feedback="Make criteria testable",
+    )
+
+    assert "US-001" in prompt
+    assert "REQ-001 [functional]: Users can log in" in prompt
+    assert "Make criteria testable" in prompt
+    assert "Preserve the existing story id exactly as US-001" in prompt

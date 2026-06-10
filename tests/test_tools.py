@@ -12,6 +12,7 @@ from realtime_assistant.tools import (
     capture_requirement,
     export_user_stories,
     generate_user_stories,
+    refine_user_story,
     summarize_requirements,
 )
 
@@ -108,6 +109,52 @@ def test_generate_user_stories_tool_uses_configured_model() -> None:
 
     assert result == []
     assert mock_generate.call_args.kwargs["model"] == "gpt-4.1-mini"
+
+
+def test_refine_user_story_tool_uses_configured_model_and_replaces_only_target(
+    sample_user_story: UserStory,
+) -> None:
+    second = sample_user_story.model_copy(update={"id": "US-002", "title": "Password reset"})
+    refined = sample_user_story.model_copy(update={"title": "Refined email login"})
+    memory.add_requirement(
+        Requirement(id="REQ-001", text="Users can log in with email", category="functional")
+    )
+    memory.set_user_stories([sample_user_story, second])
+    configure_settings(AssistantSettings(story_model="gpt-4.1-mini"))
+
+    with patch("realtime_assistant.tools.llm.refine_user_story", return_value=refined) as mock_refine:
+        result = asyncio.run(
+            refine_user_story(
+                sample_user_story.id,
+                feedback="Make criteria testable",
+                requirement_ids=["REQ-001"],
+            )
+        )
+
+    assert result["ok"] is True
+    assert result["story"]["title"] == "Refined email login"
+    assert [story.title for story in memory.list_user_stories()] == [
+        "Refined email login",
+        "Password reset",
+    ]
+    assert len(memory.get_current_session().story_refinement_history) == 1
+    assert mock_refine.call_args.kwargs["feedback"] == "Make criteria testable"
+    assert mock_refine.call_args.kwargs["model"] == "gpt-4.1-mini"
+
+
+def test_refine_user_story_tool_returns_errors_for_missing_story_and_requirement(
+    sample_user_story: UserStory,
+) -> None:
+    missing_story = asyncio.run(refine_user_story("US-MISSING", feedback="No-op"))
+    assert missing_story["ok"] is False
+    assert "not found" in missing_story["error"]
+
+    memory.set_user_stories([sample_user_story])
+    invalid_requirement = asyncio.run(
+        refine_user_story(sample_user_story.id, requirement_ids=["REQ-MISSING"])
+    )
+    assert invalid_requirement["ok"] is False
+    assert invalid_requirement["invalid_requirement_ids"] == ["REQ-MISSING"]
 
 
 def test_export_user_stories_both_creates_json_and_markdown(

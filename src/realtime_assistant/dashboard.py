@@ -11,6 +11,7 @@ from realtime_assistant.models import Priority, RequirementCategory
 from realtime_assistant.tools import (
     export_user_stories,
     generate_session_summary,
+    refine_user_story,
     submit_stories_to_jira,
 )
 
@@ -38,6 +39,11 @@ class StoryUpdateRequest(BaseModel):
     acceptance_criteria: list[str] | None = None
     priority: Priority | None = None
     story_points: int | None = None
+
+
+class StoryRefinementRequest(BaseModel):
+    feedback: str | None = None
+    requirement_ids: list[str] | None = None
 
 
 def _validation_error(exc: ValidationError) -> HTTPException:
@@ -107,6 +113,23 @@ async def patch_story(story_id: str, request: StoryUpdateRequest) -> dict[str, A
     if updated is None:
         raise HTTPException(status_code=404, detail=f"User story {story_id} not found.")
     return updated.model_dump(mode="json")
+
+
+@app.post("/api/stories/{story_id}/refine")
+async def post_refine_story(
+    story_id: str,
+    request: StoryRefinementRequest,
+) -> dict[str, Any]:
+    result = await refine_user_story(
+        story_id,
+        feedback=request.feedback,
+        requirement_ids=request.requirement_ids,
+    )
+    if not result.get("ok"):
+        error = str(result.get("error") or "Story refinement failed.")
+        status_code = 404 if "not found" in error else 400
+        raise HTTPException(status_code=status_code, detail=error)
+    return result
 
 
 @app.get("/api/session")
@@ -654,6 +677,7 @@ DASHBOARD_HTML = """<!doctype html>
           <ul>${(story.acceptance_criteria || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
           <span class="badge priority">${escapeHtml(story.priority)}</span>
           <div class="card-actions">
+            <button type="button" data-action="refine-story" data-id="${escapeHtml(story.id)}">Refine</button>
             <button type="button" data-action="edit-story" data-id="${escapeHtml(story.id)}">Edit</button>
           </div>
         </article>
@@ -786,6 +810,26 @@ DASHBOARD_HTML = """<!doctype html>
           activeEdit = { type: "story", id };
           const stories = await apiJson("/api/stories");
           renderStories(stories);
+        } else if (action === "refine-story") {
+          const feedback = window.prompt("Refinement feedback", "Make the acceptance criteria more testable.");
+          if (feedback === null) return;
+          const requirementIdsText = window.prompt("Requirement IDs, comma-separated (optional)", "");
+          if (requirementIdsText === null) return;
+          const requirement_ids = requirementIdsText
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean);
+          showToast(`Refining ${id}...`);
+          const result = await apiJson(`/api/stories/${encodeURIComponent(id)}/refine`, {
+            method: "POST",
+            body: JSON.stringify({
+              feedback,
+              requirement_ids: requirement_ids.length ? requirement_ids : undefined
+            })
+          });
+          activeEdit = null;
+          renderStories(result.stories || []);
+          showToast(`Refined ${id}.`);
         } else if (action === "cancel-edit") {
           activeEdit = null;
           await refreshDashboard();

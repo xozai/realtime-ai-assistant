@@ -138,3 +138,29 @@ def test_generate_user_stories_uses_selected_model() -> None:
         llm.generate_user_stories(make_requirements(), model="gpt-4.1")
 
     assert mock_client.beta.chat.completions.parse.call_args.kwargs["model"] == "gpt-4.1"
+
+
+def test_refine_user_story_preserves_id_and_uses_selected_model() -> None:
+    parsed = make_story(["REQ-001"]).model_copy(
+        update={"id": "US-DIFFERENT", "title": "Refined email login"}
+    )
+    completion = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(parsed=parsed))],
+    )
+    mock_client = MagicMock()
+    mock_client.beta.chat.completions.parse.return_value = completion
+    existing = make_story(["REQ-001"])
+
+    with patch("realtime_assistant.llm.OpenAI", return_value=mock_client), patch.dict(
+        "os.environ", {"OPENAI_API_KEY": "test-key"}
+    ):
+        story = llm.refine_user_story(
+            existing,
+            make_requirements(),
+            feedback="Make criteria testable",
+            model="gpt-4.1-mini",
+        )
+
+    assert story.id == "US-001"
+    assert story.title == "Refined email login"
+    assert mock_client.beta.chat.completions.parse.call_args.kwargs["model"] == "gpt-4.1-mini"

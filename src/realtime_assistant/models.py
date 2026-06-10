@@ -66,6 +66,15 @@ class UserStorySet(BaseModel):
     user_stories: list[UserStory]
 
 
+class StoryRefinementRecord(BaseModel):
+    story_id: str
+    previous_story: UserStory
+    replacement_story: UserStory
+    feedback: str | None = None
+    requirement_ids: list[str] = Field(default_factory=list)
+    refined_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
 class TokenUsage(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
@@ -192,6 +201,7 @@ class DiscoverySession(BaseModel):
     started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     requirements: list[Requirement] = Field(default_factory=list)
     user_stories: list[UserStory] = Field(default_factory=list)
+    story_refinement_history: list[StoryRefinementRecord] = Field(default_factory=list)
     summary: SessionSummary | None = None
     coverage_report: CoverageReport | None = None
     costs: SessionCosts = Field(default_factory=SessionCosts)

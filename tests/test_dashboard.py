@@ -123,6 +123,53 @@ def test_patch_story_updates_fields_and_acceptance_criteria(sample_user_story: U
     assert payload["source_requirement_ids"] == ["REQ-001"]
 
 
+def test_post_refine_story_returns_updated_story_and_list(sample_user_story: UserStory) -> None:
+    expected = {
+        "ok": True,
+        "story": {
+            **sample_user_story.model_dump(mode="json"),
+            "title": "Refined email login",
+        },
+        "stories": [
+            {
+                **sample_user_story.model_dump(mode="json"),
+                "title": "Refined email login",
+            }
+        ],
+        "history_count": 1,
+    }
+    with patch(
+        "realtime_assistant.dashboard.refine_user_story",
+        new=AsyncMock(return_value=expected),
+    ) as refine:
+        response = client.post(
+            f"/api/stories/{sample_user_story.id}/refine",
+            json={
+                "feedback": "Make criteria testable",
+                "requirement_ids": ["REQ-001"],
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["story"]["title"] == "Refined email login"
+    refine.assert_awaited_once_with(
+        sample_user_story.id,
+        feedback="Make criteria testable",
+        requirement_ids=["REQ-001"],
+    )
+
+
+def test_post_refine_missing_story_returns_404() -> None:
+    with patch(
+        "realtime_assistant.dashboard.refine_user_story",
+        new=AsyncMock(return_value={"ok": False, "error": "User story US-MISSING not found."}),
+    ):
+        response = client.post("/api/stories/US-MISSING/refine", json={"feedback": "No-op"})
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "User story US-MISSING not found."
+
+
 def test_patch_missing_requirement_returns_404() -> None:
     response = client.patch("/api/requirements/REQ-MISSING", json={"text": "No-op"})
 
@@ -272,8 +319,10 @@ def test_root_html_contains_edit_controls_and_api_hooks() -> None:
     assert 'data-action="edit-requirement"' in response.text
     assert 'data-action="delete-requirement"' in response.text
     assert 'data-action="edit-story"' in response.text
+    assert 'data-action="refine-story"' in response.text
     assert 'method: "PATCH"' in response.text
     assert 'method: "DELETE"' in response.text
+    assert "/refine" in response.text
 
 
 def test_root_html_renders_requirement_confidence_badge() -> None:
