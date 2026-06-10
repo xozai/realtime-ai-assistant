@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.2](https://github.com/xozai/realtime-ai-assistant/compare/v0.14.1...v0.14.2) (2026-06-10)
+
+
+### Documentation
+
+* post-MVP sprint 3 issue triage ([4f34602](https://github.com/xozai/realtime-ai-assistant/commit/4f34602c4741725d80e7f59359e4c8af7bc053b1))
+
 ## [0.14.1](https://github.com/xozai/realtime-ai-assistant/compare/v0.14.0...v0.14.1) (2026-06-09)
 
 
