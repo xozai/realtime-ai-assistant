@@ -159,7 +159,7 @@ Open: **http://localhost:8000**
 | `GET` | `/api/coverage` | Requirement coverage report (coverage %, uncovered list, low-confidence count) |
 | `GET` | `/api/session` | Session ID, project key, start time, counts, token costs |
 | `POST` | `/api/export` | Export stories to JSON + Markdown |
-| `POST` | `/api/jira/{project_key}` | Submit stories to Jira |
+| `POST` | `/api/jira/{project_key}` | Submit stories to Jira; pass `?dry_run=true` to preview payloads without creating issues |
 
 ---
 
@@ -177,7 +177,7 @@ The Realtime session registers these tools with the model:
 | `analyze_story_coverage()` | Compute per-requirement coverage from story source IDs; flags gaps; warns on low-confidence |
 | `dedupe_requirements()` | On-demand pairwise similarity pass over stored requirements; reports near-duplicate pairs |
 | `export_user_stories(format, output_dir, export_name)` | Write JSON and Markdown exports including coverage report |
-| `submit_stories_to_jira(project_key)` | Create Jira Story issues; warns if uncovered must-have requirements exist |
+| `submit_stories_to_jira(project_key, dry_run)` | Preview or create Jira Story issues; reports per-story success/failure/skipped results and warns if uncovered must-have requirements exist |
 
 **Requirement categories:** `functional` · `non-functional` · `constraint` · `assumption`
 
@@ -308,6 +308,15 @@ python src/realtime_assistant/main.py --voice
 Submits generated stories to Jira as Story issues via the Atlassian REST API v3. Uses stdlib `urllib` — no extra dependencies.
 
 Add to `.env` (see Install section). The `submit_stories_to_jira` tool requires an explicit Jira project key — it is intentionally separate from the discovery `--project` key.
+
+Use `dry_run=true` to preview the exact Jira issue payloads before anything is created:
+
+```text
+submit_stories_to_jira(project_key="PROJ", dry_run=true)
+POST /api/jira/PROJ?dry_run=true
+```
+
+Real submissions return a per-story `results` list with `success`, `failure`, or `skipped` status. A single failed story does not stop later stories from being attempted. Successful real submissions still include the legacy `created_issues` list and `count` for existing callers.
 
 ### Priority mapping
 

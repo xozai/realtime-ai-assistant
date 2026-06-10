@@ -150,8 +150,8 @@ async def get_coverage() -> dict[str, Any]:
 
 
 @app.post("/api/jira/{project_key}")
-async def post_jira(project_key: str) -> dict[str, Any]:
-    return await submit_stories_to_jira(project_key)
+async def post_jira(project_key: str, dry_run: bool = False) -> dict[str, Any]:
+    return await submit_stories_to_jira(project_key, dry_run=dry_run)
 
 
 DASHBOARD_HTML = """<!doctype html>
@@ -837,10 +837,20 @@ DASHBOARD_HTML = """<!doctype html>
     document.querySelector("#jira-button").addEventListener("click", async () => {
       const key = window.prompt("Jira project key");
       if (!key) return;
-      const response = await fetch(`/api/jira/${encodeURIComponent(key)}`, { method: "POST" });
+      const dryRun = window.confirm("Preview Jira submission first? Click Cancel to create issues now.");
+      const response = await fetch(`/api/jira/${encodeURIComponent(key)}?dry_run=${dryRun ? "true" : "false"}`, { method: "POST" });
       const result = await response.json();
       const issueKeys = (result.created_issues || []).map((issue) => issue.key || issue).join(", ");
-      showToast(result.ok ? `Submitted ${result.count} issues: ${issueKeys}` : `Jira failed: ${result.error || "unknown error"}`);
+      const failures = (result.results || []).filter((item) => item.status === "failure");
+      if (result.dry_run) {
+        showToast(`Jira preview: ${result.skipped_count || 0} issues ready. No issues created.`);
+      } else if (result.ok) {
+        showToast(`Submitted ${result.count} issues: ${issueKeys}`);
+      } else if (failures.length) {
+        showToast(`Jira partial failure: ${result.success_count || 0} created, ${failures.length} failed. ${failures.map((item) => `${item.story_id}: ${item.error}`).join("\\n")}`);
+      } else {
+        showToast(`Jira failed: ${result.error || "unknown error"}`);
+      }
     });
 
     refreshDashboard().catch((error) => showToast(`Refresh failed: ${error.message}`));

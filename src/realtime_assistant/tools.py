@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -115,8 +116,8 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "type": "function",
         "name": "submit_stories_to_jira",
         "description": (
-            "Submit all generated user stories to a Jira project as Story issues. "
-            "Call this after generate_user_stories. Returns the created Jira issue keys."
+            "Submit all generated user stories to a Jira project as Story issues, or preview "
+            "the exact Jira payloads with dry_run. Call this after generate_user_stories."
         ),
         "parameters": {
             "type": "object",
@@ -124,7 +125,11 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "project_key": {
                     "type": "string",
                     "description": "The Jira project key, e.g. PROJ or MYAPP",
-                }
+                },
+                "dry_run": {
+                    "type": "boolean",
+                    "description": "When true, render Jira payloads without creating issues.",
+                },
             },
             "required": [],
             "additionalProperties": False,
@@ -278,7 +283,10 @@ async def export_user_stories(
     }
 
 
-async def submit_stories_to_jira(project_key: str | None = None) -> dict[str, Any]:
+async def submit_stories_to_jira(
+    project_key: str | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
     if not project_key:
         return {
             "ok": False,
@@ -290,25 +298,43 @@ async def submit_stories_to_jira(project_key: str | None = None) -> dict[str, An
             "discovery_project_key": memory.get_current_session().project_key,
         }
 
-    try:
-        config = JiraConfig.from_env()
-    except KeyError as exc:
-        return {"ok": False, "error": f"Missing Jira configuration environment variable: {exc.args[0]}"}
-
-    try:
-        client = JiraClient(config)
-        if not client.validate_project(project_key):
-            return {
-                "ok": False,
-                "error": f"Jira project '{project_key}' was not found or is not accessible.",
-            }
-
-        stories = memory.list_user_stories()
+    stories = memory.list_user_stories()
+    if dry_run:
         if not stories:
             return {
                 "ok": False,
                 "error": "No user stories in memory. Run generate_user_stories first.",
             }
+        config = JiraConfig(
+            base_url=os.environ.get("JIRA_BASE_URL", ""),
+            user_email=os.environ.get("JIRA_USER_EMAIL", ""),
+            api_token=os.environ.get("JIRA_API_TOKEN", ""),
+            story_points_field=os.environ.get("JIRA_STORY_POINTS_FIELD", "story_points"),
+        )
+    else:
+        try:
+            config = JiraConfig.from_env()
+        except KeyError as exc:
+            return {
+                "ok": False,
+                "error": f"Missing Jira configuration environment variable: {exc.args[0]}",
+            }
+
+    try:
+        client = JiraClient(config)
+        if not dry_run and not client.validate_project(project_key):
+            return {
+                "ok": False,
+                "error": f"Jira project '{project_key}' was not found or is not accessible.",
+            }
+
+        if not dry_run:
+            stories = memory.list_user_stories()
+            if not stories:
+                return {
+                    "ok": False,
+                    "error": "No user stories in memory. Run generate_user_stories first.",
+                }
 
         # Warn if uncovered must-have requirements exist
         session = memory.get_current_session()
@@ -329,16 +355,73 @@ async def submit_stories_to_jira(project_key: str | None = None) -> dict[str, An
                     + ". Consider running analyze_story_coverage first.[/yellow]"
                 )
 
-        created_issues = [client.create_issue(project_key, story) for story in stories]
+        if dry_run:
+            results = [
+                {
+                    **client.preview_issue(project_key, story),
+                    "status": "skipped",
+                    "skipped_reason": "dry_run",
+                }
+                for story in stories
+            ]
+            return {
+                "ok": True,
+                "dry_run": True,
+                "project_key": project_key,
+                "results": results,
+                "created_issues": [],
+                "count": 0,
+                "total_count": len(stories),
+                "success_count": 0,
+                "failure_count": 0,
+                "skipped_count": len(stories),
+            }
+
+        results: list[dict[str, Any]] = []
+        created_issues: list[str] = []
+        for story in stories:
+            try:
+                issue_key = client.create_issue(project_key, story)
+            except Exception as exc:
+                results.append(
+                    {
+                        "story_id": story.id,
+                        "title": story.title,
+                        "status": "failure",
+                        "error": str(exc),
+                    }
+                )
+                continue
+
+            created_issues.append(issue_key)
+            results.append(
+                {
+                    "story_id": story.id,
+                    "title": story.title,
+                    "status": "success",
+                    "issue_key": issue_key,
+                    "issue_url": client.issue_url(issue_key),
+                }
+            )
     except Exception as exc:
         return {"ok": False, "error": f"Failed to submit stories to Jira: {exc}"}
 
-    return {
-        "ok": True,
+    failure_count = sum(1 for result in results if result["status"] == "failure")
+    response = {
+        "ok": failure_count == 0,
+        "dry_run": False,
         "project_key": project_key,
+        "results": results,
         "created_issues": created_issues,
         "count": len(created_issues),
+        "total_count": len(stories),
+        "success_count": len(created_issues),
+        "failure_count": failure_count,
+        "skipped_count": 0,
     }
+    if failure_count:
+        response["error"] = f"{failure_count} Jira issue submission failed."
+    return response
 
 
 async def generate_session_summary() -> dict[str, Any]:

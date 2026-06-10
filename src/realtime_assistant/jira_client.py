@@ -20,7 +20,28 @@ class JiraClient:
         self.base_url = config.base_url.rstrip("/")
 
     def create_issue(self, project_key: str, story: UserStory) -> str:
-        payload = {
+        response = self._request("POST", "/rest/api/3/issue", self.issue_payload(project_key, story))
+        issue_key = response.get("key")
+        if not isinstance(issue_key, str) or not issue_key:
+            raise RuntimeError("Jira issue creation response did not include an issue key.")
+        return issue_key
+
+    def preview_issue(self, project_key: str, story: UserStory) -> dict:
+        return {
+            "project_key": project_key,
+            "story_id": story.id,
+            "title": story.title,
+            "summary": story.title,
+            "description": self._format_description(story),
+            "issue_type": "Story",
+            "priority": PRIORITY_MAP[story.priority],
+            "story_points_field": self.config.story_points_field,
+            "story_points": story.story_points,
+            "payload": self.issue_payload(project_key, story),
+        }
+
+    def issue_payload(self, project_key: str, story: UserStory) -> dict:
+        return {
             "fields": {
                 "project": {"key": project_key},
                 "summary": story.title,
@@ -39,11 +60,9 @@ class JiraClient:
                 self.config.story_points_field: story.story_points,
             }
         }
-        response = self._request("POST", "/rest/api/3/issue", payload)
-        issue_key = response.get("key")
-        if not isinstance(issue_key, str) or not issue_key:
-            raise RuntimeError("Jira issue creation response did not include an issue key.")
-        return issue_key
+
+    def issue_url(self, issue_key: str) -> str:
+        return f"{self.base_url}/browse/{issue_key}"
 
     def validate_project(self, project_key: str) -> bool:
         try:
