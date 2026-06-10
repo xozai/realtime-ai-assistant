@@ -82,6 +82,7 @@ def test_submit_stories_success() -> None:
     mock_client = MagicMock()
     mock_client.validate_project.return_value = True
     mock_client.create_issue.side_effect = ["PROJ-1", "PROJ-2"]
+    mock_client.issue_url.side_effect = lambda key: f"https://example.atlassian.net/browse/{key}"
 
     with patch.dict("os.environ", jira_env(), clear=True), patch(
         "realtime_assistant.tools.JiraClient", return_value=mock_client
@@ -92,13 +93,49 @@ def test_submit_stories_success() -> None:
     assert result["project_key"] == "PROJ"
     assert result["created_issues"] == ["PROJ-1", "PROJ-2"]
     assert result["count"] == 2
+    assert result["success_count"] == 2
+    assert result["failure_count"] == 0
+    assert [item["status"] for item in result["results"]] == ["success", "success"]
+    assert result["results"][0]["issue_key"] == "PROJ-1"
+    assert result["results"][0]["issue_url"] == "https://example.atlassian.net/browse/PROJ-1"
 
 
-def test_submit_stories_partial_failure() -> None:
-    memory.set_user_stories([make_story("US-001", "First story"), make_story("US-002", "Second story")])
+def test_submit_stories_dry_run_returns_preview_without_network() -> None:
+    memory.set_user_stories([make_story("US-001", "First story")])
+
+    with patch.dict("os.environ", {"JIRA_STORY_POINTS_FIELD": "customfield_10016"}, clear=True), patch(
+        "realtime_assistant.jira_client.request.urlopen"
+    ) as urlopen:
+        result = asyncio.run(submit_stories_to_jira("PROJ", dry_run=True))
+
+    urlopen.assert_not_called()
+    assert result["ok"] is True
+    assert result["dry_run"] is True
+    assert result["created_issues"] == []
+    assert result["count"] == 0
+    assert result["skipped_count"] == 1
+    assert result["results"][0]["status"] == "skipped"
+    assert result["results"][0]["skipped_reason"] == "dry_run"
+    assert result["results"][0]["story_points_field"] == "customfield_10016"
+    assert result["results"][0]["payload"]["fields"]["summary"] == "First story"
+
+
+def test_submit_stories_partial_failure_continues_after_failed_story() -> None:
+    memory.set_user_stories(
+        [
+            make_story("US-001", "First story"),
+            make_story("US-002", "Second story"),
+            make_story("US-003", "Third story"),
+        ]
+    )
     mock_client = MagicMock()
     mock_client.validate_project.return_value = True
-    mock_client.create_issue.side_effect = ["PROJ-1", RuntimeError("Jira rejected story")]
+    mock_client.create_issue.side_effect = [
+        "PROJ-1",
+        RuntimeError("Jira rejected story"),
+        "PROJ-3",
+    ]
+    mock_client.issue_url.side_effect = lambda key: f"https://example.atlassian.net/browse/{key}"
 
     with patch.dict("os.environ", jira_env(), clear=True), patch(
         "realtime_assistant.tools.JiraClient", return_value=mock_client
@@ -106,5 +143,11 @@ def test_submit_stories_partial_failure() -> None:
         result = asyncio.run(submit_stories_to_jira("PROJ"))
 
     assert result["ok"] is False
-    assert "Failed to submit stories to Jira" in result["error"]
-    assert "Jira rejected story" in result["error"]
+    assert result["created_issues"] == ["PROJ-1", "PROJ-3"]
+    assert result["count"] == 2
+    assert result["success_count"] == 2
+    assert result["failure_count"] == 1
+    assert [item["status"] for item in result["results"]] == ["success", "failure", "success"]
+    assert result["results"][1]["story_id"] == "US-002"
+    assert result["results"][1]["error"] == "Jira rejected story"
+    assert mock_client.create_issue.call_count == 3

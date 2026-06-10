@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, patch
+
 from fastapi.testclient import TestClient
 
 from realtime_assistant.dashboard import app
@@ -216,6 +218,24 @@ def test_post_export_with_stories(sample_user_story: UserStory, monkeypatch, tmp
         str(tmp_path.resolve() / "DISC-DASH" / "user_stories.json"),
         str(tmp_path.resolve() / "DISC-DASH" / "user_stories.md"),
     ]
+
+
+def test_post_jira_passes_dry_run_query() -> None:
+    expected = {
+        "ok": True,
+        "dry_run": True,
+        "project_key": "PROJ",
+        "results": [{"story_id": "US-001", "status": "skipped"}],
+    }
+    with patch(
+        "realtime_assistant.dashboard.submit_stories_to_jira",
+        new=AsyncMock(return_value=expected),
+    ) as submit:
+        response = client.post("/api/jira/PROJ?dry_run=true")
+
+    assert response.status_code == 200
+    assert response.json() == expected
+    submit.assert_awaited_once_with("PROJ", dry_run=True)
 
 
 def test_root_html_contains_auto_refresh() -> None:

@@ -70,6 +70,21 @@ def test_create_issue_formats_description_correctly() -> None:
     assert "Given invalid credentials, then an error is shown." in description
 
 
+def test_preview_issue_returns_exact_submission_payload_without_network() -> None:
+    client = JiraClient(make_config())
+    with patch("realtime_assistant.jira_client.request.urlopen") as urlopen:
+        preview = client.preview_issue("PROJ", make_story())
+
+    urlopen.assert_not_called()
+    assert preview["story_id"] == "US-001"
+    assert preview["summary"] == "Email login"
+    assert preview["description"] == JiraClient._format_description(make_story())
+    assert preview["priority"] == "Highest"
+    assert preview["story_points_field"] == "story_points"
+    assert preview["payload"] == client.issue_payload("PROJ", make_story())
+    assert preview["payload"]["fields"]["description"]["content"][0]["content"][0]["text"] == preview["description"]
+
+
 def test_create_issue_maps_priority_must_have_to_highest() -> None:
     client = JiraClient(make_config())
     with patch("realtime_assistant.jira_client.request.urlopen", return_value=make_response(201, {"key": "PROJ-1"})) as urlopen:
