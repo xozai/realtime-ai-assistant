@@ -154,6 +154,7 @@ Open: **http://localhost:8000**
 | `DELETE` | `/api/requirements/{requirement_id}` | Delete one requirement |
 | `GET` | `/api/stories` | All generated user stories |
 | `PATCH` | `/api/stories/{story_id}` | Update story fields, acceptance criteria, priority, points |
+| `POST` | `/api/stories/{story_id}/refine` | Refine or regenerate one story using feedback and optional `requirement_ids` without replacing unrelated stories |
 | `GET` | `/api/summary` | Current executive summary (`null` if not yet generated) |
 | `POST` | `/api/summary/generate` | Generate and store executive summary via LLM |
 | `GET` | `/api/coverage` | Requirement coverage report (coverage %, uncovered list, low-confidence count) |
@@ -172,7 +173,8 @@ The Realtime session registers these tools with the model:
 | `capture_requirement(requirement, category)` | Store a requirement; auto-deduplicates via embeddings and scores confidence via LLM |
 | `ask_clarifying_question(topic, question)` | Log a clarifying question |
 | `summarize_requirements()` | Print requirements grouped by confidence; Rich-warns on low-confidence items |
-| `generate_user_stories()` | Produce structured `UserStory` objects with `source_requirement_ids` via Chat Completions |
+| `generate_user_stories()` | Produce a full replacement set of structured `UserStory` objects with `source_requirement_ids` via Chat Completions |
+| `refine_user_story(story_id, feedback, requirement_ids)` | Refine or regenerate one existing story while preserving unrelated generated stories and recording refinement history |
 | `generate_session_summary()` | Generate a structured executive summary (overview, key requirements, open questions, risks) |
 | `analyze_story_coverage()` | Compute per-requirement coverage from story source IDs; flags gaps; warns on low-confidence |
 | `dedupe_requirements()` | On-demand pairwise similarity pass over stored requirements; reports near-duplicate pairs |

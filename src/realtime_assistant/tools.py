@@ -85,6 +85,37 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     },
     {
         "type": "function",
+        "name": "refine_user_story",
+        "description": (
+            "Refine or regenerate one existing user story using optional reviewer feedback "
+            "and optional selected source requirement IDs. Does not replace unrelated stories."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "story_id": {
+                    "type": "string",
+                    "description": "The existing user story ID to refine, e.g. US-001.",
+                },
+                "feedback": {
+                    "type": "string",
+                    "description": "Reviewer feedback such as split this story or make criteria testable.",
+                },
+                "requirement_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Optional exact requirement IDs to use as source context. "
+                        "When omitted, the story's current source_requirement_ids are used."
+                    ),
+                },
+            },
+            "required": ["story_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "type": "function",
         "name": "export_user_stories",
         "description": "Export generated user stories to JSON, Markdown, or both.",
         "parameters": {
@@ -256,6 +287,71 @@ async def generate_user_stories() -> list[UserStory]:
     memory.set_user_stories(stories)
     log_stories(stories)
     return stories
+
+
+async def refine_user_story(
+    story_id: str,
+    feedback: str | None = None,
+    requirement_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    story = memory.get_user_story(story_id)
+    if story is None:
+        return {"ok": False, "error": f"User story {story_id} not found."}
+
+    requirement_context, invalid_requirement_ids = _requirements_for_story_refinement(
+        story,
+        requirement_ids,
+    )
+    if invalid_requirement_ids:
+        return {
+            "ok": False,
+            "error": "Unknown requirement IDs: " + ", ".join(invalid_requirement_ids),
+            "invalid_requirement_ids": invalid_requirement_ids,
+        }
+
+    settings = get_settings()
+    refined = await asyncio.to_thread(
+        llm.refine_user_story,
+        story,
+        requirement_context,
+        feedback=feedback,
+        model=settings.story_model,
+    )
+    updated = memory.replace_user_story(
+        story_id,
+        refined,
+        feedback=feedback,
+        requirement_ids=[requirement.id for requirement in requirement_context],
+    )
+    if updated is None:
+        return {"ok": False, "error": f"User story {story_id} not found."}
+    log_stories([updated])
+    return {
+        "ok": True,
+        "story": updated.model_dump(mode="json"),
+        "stories": [item.model_dump(mode="json") for item in memory.list_user_stories()],
+        "history_count": len(memory.get_current_session().story_refinement_history),
+    }
+
+
+def _requirements_for_story_refinement(
+    story: UserStory,
+    requirement_ids: list[str] | None,
+) -> tuple[list[Requirement], list[str]]:
+    all_requirements = {requirement.id: requirement for requirement in memory.list_requirements()}
+    selected_ids = requirement_ids if requirement_ids is not None else story.source_requirement_ids
+    deduped_ids: list[str] = []
+    invalid_ids: list[str] = []
+    for requirement_id in selected_ids:
+        normalized = requirement_id.strip()
+        if not normalized or normalized in deduped_ids:
+            continue
+        if normalized not in all_requirements:
+            if requirement_ids is not None:
+                invalid_ids.append(normalized)
+            continue
+        deduped_ids.append(normalized)
+    return [all_requirements[requirement_id] for requirement_id in deduped_ids], invalid_ids
 
 
 async def export_user_stories(
@@ -504,6 +600,7 @@ FUNCTION_MAP: dict[str, ToolHandler] = {
     "ask_clarifying_question": ask_clarifying_question,
     "summarize_requirements": summarize_requirements,
     "generate_user_stories": generate_user_stories,
+    "refine_user_story": refine_user_story,
     "export_user_stories": export_user_stories,
     "submit_stories_to_jira": submit_stories_to_jira,
     "generate_session_summary": generate_session_summary,

@@ -14,7 +14,7 @@ from realtime_assistant.models import (
     UserStory,
     UserStorySet,
 )
-from realtime_assistant.prompts import story_generation_prompt
+from realtime_assistant.prompts import story_generation_prompt, story_refinement_prompt
 
 
 def get_embedding(text: str) -> list[float]:
@@ -92,6 +92,63 @@ def generate_user_stories(requirements: list[Requirement], model: str = "gpt-4o"
             raise RuntimeError("Story generation returned no content.")
         parsed = UserStorySet.model_validate(json.loads(content))
         return validate_story_source_requirement_ids(parsed.user_stories, requirements)
+
+
+def refine_user_story(
+    story: UserStory,
+    requirements: list[Requirement],
+    *,
+    feedback: str | None = None,
+    model: str = "gpt-4o",
+) -> UserStory:
+    if not os.getenv("OPENAI_API_KEY"):
+        raise RuntimeError("OPENAI_API_KEY is not set. Copy .env.example to .env and add a key.")
+
+    client = OpenAI()
+    messages = [
+        {
+            "role": "system",
+            "content": "You refine one structured Agile user story for software teams.",
+        },
+        {
+            "role": "user",
+            "content": story_refinement_prompt(story, requirements, feedback=feedback),
+        },
+    ]
+
+    try:
+        completion = client.beta.chat.completions.parse(
+            model=model,
+            messages=messages,
+            response_format=UserStory,
+        )
+        _accumulate_chat_completion_usage(completion)
+        parsed = completion.choices[0].message.parsed
+        if parsed is None:
+            raise RuntimeError("Structured output parser returned no parsed content.")
+        refined = parsed
+    except AttributeError:
+        schema = UserStory.model_json_schema()
+        completion = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "user_story",
+                    "schema": schema,
+                    "strict": True,
+                },
+            },
+        )
+        _accumulate_chat_completion_usage(completion)
+        content = completion.choices[0].message.content
+        if content is None:
+            raise RuntimeError("Story refinement returned no content.")
+        refined = UserStory.model_validate(json.loads(content))
+
+    refined = refined.model_copy(update={"id": story.id})
+    return validate_story_source_requirement_ids([refined], requirements)[0]
 
 
 def score_requirement_confidence(

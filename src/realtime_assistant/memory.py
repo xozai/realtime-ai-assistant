@@ -10,6 +10,7 @@ from realtime_assistant.models import (
     Priority,
     Requirement,
     RequirementCategory,
+    StoryRefinementRecord,
     UserStory,
 )
 
@@ -55,6 +56,7 @@ __all__ = [
     "memory",
     "remove_requirement",
     "remove_user_story",
+    "replace_user_story",
     "replace_user_stories",
     "reset_session",
     "save_session",
@@ -399,6 +401,33 @@ class SessionMemory:
         self.session.user_stories[story_index] = updated
         return updated
 
+    def replace_user_story(
+        self,
+        story_id: str,
+        replacement: UserStory,
+        *,
+        feedback: str | None = None,
+        requirement_ids: list[str] | None = None,
+    ) -> UserStory | None:
+        """Replace one generated story, preserving list order and recording history."""
+        story_index = self._user_story_index(story_id)
+        if story_index is None:
+            return None
+
+        previous = self.session.user_stories[story_index]
+        updated = replacement.model_copy(update={"id": previous.id})
+        self.session.user_stories[story_index] = updated
+        self.session.story_refinement_history.append(
+            StoryRefinementRecord(
+                story_id=previous.id,
+                previous_story=previous,
+                replacement_story=updated,
+                feedback=feedback.strip() if feedback else None,
+                requirement_ids=list(requirement_ids or []),
+            )
+        )
+        return updated
+
     def _user_story_index(self, story_id: str) -> int | None:
         for index, story in enumerate(self.session.user_stories):
             if story.id == story_id:
@@ -613,6 +642,22 @@ def update_user_story(
         acceptance_criteria=acceptance_criteria,
         priority=priority,
         story_points=story_points,
+    )
+
+
+def replace_user_story(
+    story_id: str,
+    replacement: UserStory,
+    *,
+    feedback: str | None = None,
+    requirement_ids: list[str] | None = None,
+) -> UserStory | None:
+    """Replace one singleton user story while preserving unrelated stories."""
+    return memory.replace_user_story(
+        story_id,
+        replacement,
+        feedback=feedback,
+        requirement_ids=requirement_ids,
     )
 
 

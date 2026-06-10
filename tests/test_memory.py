@@ -122,6 +122,36 @@ def test_update_user_story_preserves_order_and_validates(sample_user_story: User
         store.update_user_story(sample_user_story.id, story_points=4)
 
 
+def test_replace_user_story_replaces_only_target_and_records_history(
+    sample_user_story: UserStory,
+) -> None:
+    store = SessionMemory()
+    second = sample_user_story.model_copy(update={"id": "US-002", "title": "Password reset"})
+    replacement = sample_user_story.model_copy(
+        update={"id": "US-NEW", "title": "Refined email login"}
+    )
+    store.set_user_stories([sample_user_story, second])
+
+    updated = store.replace_user_story(
+        sample_user_story.id,
+        replacement,
+        feedback="Make criteria testable",
+        requirement_ids=["REQ-001"],
+    )
+
+    assert updated is not None
+    assert updated.id == sample_user_story.id
+    assert updated.title == "Refined email login"
+    assert store.list_user_stories() == [updated, second]
+    assert len(store.get_current_session().story_refinement_history) == 1
+    history = store.get_current_session().story_refinement_history[0]
+    assert history.previous_story == sample_user_story
+    assert history.replacement_story == updated
+    assert history.feedback == "Make criteria testable"
+    assert history.requirement_ids == ["REQ-001"]
+    assert store.replace_user_story("missing", replacement) is None
+
+
 def test_replace_and_clear_user_stories(sample_user_story: UserStory) -> None:
     store = SessionMemory()
 
