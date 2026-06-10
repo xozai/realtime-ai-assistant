@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.14.2...v0.15.0) (2026-06-10)
+
+
+### Features
+
+* configure story generation model ([#68](https://github.com/xozai/realtime-ai-assistant/issues/68)) ([33024d0](https://github.com/xozai/realtime-ai-assistant/commit/33024d088229438c3a9d168c7441deeb62ca31bc))
+
 ## [0.14.2](https://github.com/xozai/realtime-ai-assistant/compare/v0.14.1...v0.14.2) (2026-06-10)
 
 
