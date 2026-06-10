@@ -47,6 +47,9 @@ Edit `.env`:
 ```bash
 OPENAI_API_KEY=***
 
+# Optional — story generation model (default gpt-4o)
+STORY_GENERATION_MODEL=gpt-4o
+
 # Optional — Jira integration
 JIRA_BASE_URL=https://your-org.atlassian.net
 JIRA_USER_EMAIL=you@example.com
@@ -120,6 +123,8 @@ Sessions, transcripts, and exports are isolated per project key. Switching `--pr
 |---|---|---|
 | `--project PROJECT_KEY` | `default` | Discovery project key — isolates sessions, exports, transcripts |
 | `--voice` | off | Live microphone input + speaker output (requires `sounddevice`) |
+| `--model MODEL` | `gpt-4o-realtime-preview` | Realtime voice/text model |
+| `--story-model MODEL` | `STORY_GENERATION_MODEL` or `gpt-4o` | Chat Completions model for story generation |
 | `--no-dashboard` | off | Disable the web dashboard |
 | `--dashboard-port PORT` | `8000` | Dashboard port |
 | `--resume SESSION_ID` | unset | Load a prior session (scoped to `--project`) |
