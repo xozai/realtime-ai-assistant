@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.2](https://github.com/xozai/realtime-ai-assistant/compare/v0.18.1...v0.18.2) (2026-06-10)
+
+
+### Documentation
+
+* note README sync through v0.18.1 ([#78](https://github.com/xozai/realtime-ai-assistant/issues/78)) ([625733a](https://github.com/xozai/realtime-ai-assistant/commit/625733a15c2c02c1de37d08dda7d2c72686c1bc5))
+
 ## [0.18.1](https://github.com/xozai/realtime-ai-assistant/compare/v0.18.0...v0.18.1) (2026-06-10)
 
 
