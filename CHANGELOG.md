@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.17.0...v0.18.0) (2026-06-10)
+
+
+### Features
+
+* stream dashboard events ([#74](https://github.com/xozai/realtime-ai-assistant/issues/74)) ([2613978](https://github.com/xozai/realtime-ai-assistant/commit/2613978a1c06f0af05fe441d9f49d7a4b2e89ed9))
+
 ## [0.17.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.16.0...v0.17.0) (2026-06-10)
 
 
