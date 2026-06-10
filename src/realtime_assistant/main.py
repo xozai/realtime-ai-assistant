@@ -22,6 +22,7 @@ import websockets
 from dotenv import load_dotenv
 from rich.table import Table
 
+from realtime_assistant.config import configure_settings, load_settings
 from realtime_assistant.logging import console, logger
 from realtime_assistant.memory import SESSIONS_DIR, SessionMemory, memory
 from realtime_assistant.models import DiscoverySession
@@ -54,6 +55,14 @@ def parse_args() -> argparse.Namespace:
         "--model",
         default=REALTIME_MODEL,
         help="Realtime model name.",
+    )
+    parser.add_argument(
+        "--story-model",
+        default=None,
+        help=(
+            "OpenAI model name for story generation. "
+            "Defaults to STORY_GENERATION_MODEL or gpt-4o."
+        ),
     )
     parser.add_argument(
         "--voice",
@@ -151,11 +160,12 @@ def create_transcript_writer(
 
 
 async def main() -> None:
+    load_dotenv()
     args = parse_args()
+    configure_settings(load_settings(story_model=args.story_model))
     initialize_session_from_args(args)
     memory.configure_export_options(output_dir=args.output_dir, export_name=args.export_name)
 
-    load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is not set. Copy .env.example to .env and add a key.")

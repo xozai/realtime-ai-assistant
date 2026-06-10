@@ -106,3 +106,35 @@ def test_generate_user_stories_accumulates_chat_usage() -> None:
     usage = memory.get_current_session().costs.chat_completions
     assert usage.input_tokens == 1000
     assert usage.output_tokens == 250
+
+
+def test_generate_user_stories_uses_default_model() -> None:
+    parsed = UserStorySet(user_stories=[make_story(["REQ-001"])])
+    completion = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(parsed=parsed))],
+    )
+    mock_client = MagicMock()
+    mock_client.beta.chat.completions.parse.return_value = completion
+
+    with patch("realtime_assistant.llm.OpenAI", return_value=mock_client), patch.dict(
+        "os.environ", {"OPENAI_API_KEY": "test-key"}
+    ):
+        llm.generate_user_stories(make_requirements())
+
+    assert mock_client.beta.chat.completions.parse.call_args.kwargs["model"] == "gpt-4o"
+
+
+def test_generate_user_stories_uses_selected_model() -> None:
+    parsed = UserStorySet(user_stories=[make_story(["REQ-001"])])
+    completion = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(parsed=parsed))],
+    )
+    mock_client = MagicMock()
+    mock_client.beta.chat.completions.parse.return_value = completion
+
+    with patch("realtime_assistant.llm.OpenAI", return_value=mock_client), patch.dict(
+        "os.environ", {"OPENAI_API_KEY": "test-key"}
+    ):
+        llm.generate_user_stories(make_requirements(), model="gpt-4.1")
+
+    assert mock_client.beta.chat.completions.parse.call_args.kwargs["model"] == "gpt-4.1"

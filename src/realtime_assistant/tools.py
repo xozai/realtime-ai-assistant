@@ -12,6 +12,7 @@ from rich.table import Table
 
 from realtime_assistant import export as story_export
 from realtime_assistant import llm
+from realtime_assistant.config import get_settings
 from realtime_assistant.coverage import analyze_coverage
 from realtime_assistant.jira_client import JiraClient
 from realtime_assistant.logging import (
@@ -241,7 +242,12 @@ async def summarize_requirements() -> dict[str, Any]:
 
 async def generate_user_stories() -> list[UserStory]:
     requirements = memory.list_requirements()
-    stories = await asyncio.to_thread(llm.generate_user_stories, requirements)
+    settings = get_settings()
+    stories = await asyncio.to_thread(
+        llm.generate_user_stories,
+        requirements,
+        model=settings.story_model,
+    )
     memory.set_user_stories(stories)
     log_stories(stories)
     return stories

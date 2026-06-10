@@ -4,6 +4,7 @@ import asyncio
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from realtime_assistant.config import AssistantSettings, configure_settings
 from realtime_assistant.memory import memory
 from realtime_assistant.models import DiscoverySession, Requirement, UserStory
 from realtime_assistant.tools import (
@@ -16,6 +17,7 @@ from realtime_assistant.tools import (
 
 
 def setup_function() -> None:
+    configure_settings(AssistantSettings())
     memory.reset_session()
     memory.configure_export_options()
     memory.clear_requirements()
@@ -93,6 +95,19 @@ def test_generate_user_stories_with_mocked_openai_response(mock_openai_response)
     assert isinstance(result, list)
     assert all(isinstance(story, UserStory) for story in result)
     assert len(memory.list_user_stories()) == 2
+
+
+def test_generate_user_stories_tool_uses_configured_model() -> None:
+    memory.add_requirement(
+        Requirement(id="REQ-001", text="Users can log in with email", category="functional")
+    )
+    configure_settings(AssistantSettings(story_model="gpt-4.1-mini"))
+
+    with patch("realtime_assistant.tools.llm.generate_user_stories", return_value=[]) as mock_generate:
+        result = asyncio.run(generate_user_stories())
+
+    assert result == []
+    assert mock_generate.call_args.kwargs["model"] == "gpt-4.1-mini"
 
 
 def test_export_user_stories_both_creates_json_and_markdown(
