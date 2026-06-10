@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
@@ -250,6 +251,19 @@ def test_get_session_returns_summary() -> None:
     assert payload["costs"]["total_cost_usd"] == 0.015
 
 
+def test_get_events_returns_sse_snapshot() -> None:
+    response = client.get("/api/events?once=true")
+
+    assert response.status_code == 200
+    assert "text/event-stream" in response.headers["content-type"]
+    assert response.headers["cache-control"] == "no-cache"
+    assert response.text.startswith("data: ")
+    payload = json.loads(response.text.removeprefix("data: ").strip())
+    assert payload["type"] == "connected"
+    assert payload["snapshot"]["requirement_count"] == 0
+    assert payload["snapshot"]["story_count"] == 0
+
+
 def test_post_export_with_stories(sample_user_story: UserStory, monkeypatch, tmp_path) -> None:
     memory.create_session(DiscoverySession(session_id="DISC-DASH"))
     memory.configure_export_options(output_dir=tmp_path)
@@ -289,6 +303,14 @@ def test_root_html_contains_auto_refresh() -> None:
     response = client.get("/")
 
     assert "setInterval" in response.text or "fetch" in response.text
+
+
+def test_root_html_contains_eventsource_fallback() -> None:
+    response = client.get("/")
+
+    assert "EventSource" in response.text
+    assert "/api/events" in response.text
+    assert "startPollingFallback" in response.text
 
 
 def test_root_html_contains_cost_section() -> None:

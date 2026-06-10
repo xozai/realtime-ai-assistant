@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
+from collections.abc import AsyncIterator
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel, ValidationError
 
+from realtime_assistant.events import dashboard_event, event_bus, format_sse
 from realtime_assistant.memory import memory
 from realtime_assistant.models import Priority, RequirementCategory
 from realtime_assistant.tools import (
@@ -144,6 +147,32 @@ async def get_session() -> dict[str, Any]:
         "session_id": session.session_id,
         "started_at": session.started_at.isoformat(),
     }
+
+
+@app.get("/api/events")
+async def get_events(request: Request, once: bool = False) -> StreamingResponse:
+    async def stream() -> AsyncIterator[str]:
+        yield format_sse(dashboard_event("connected"))
+        if once:
+            return
+        async with event_bus.subscribe() as queue:
+            while not await request.is_disconnected():
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15)
+                except TimeoutError:
+                    yield ": keep-alive\n\n"
+                    continue
+                yield format_sse(event)
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.post("/api/export")
@@ -763,6 +792,80 @@ DASHBOARD_HTML = """<!doctype html>
       renderCoverage(coveragePayload.coverage_report);
     }
 
+    let pollingTimer = null;
+    let eventsConnected = false;
+    let reconnectNoticeShown = false;
+    let refreshQueued = false;
+
+    function startPollingFallback() {
+      if (pollingTimer) return;
+      pollingTimer = setInterval(() => refreshDashboard().catch((error) => showToast(`Refresh failed: ${error.message}`)), 3000);
+    }
+
+    function stopPollingFallback() {
+      if (!pollingTimer) return;
+      clearInterval(pollingTimer);
+      pollingTimer = null;
+    }
+
+    function applyEventSnapshot(snapshot) {
+      if (!snapshot) return;
+      if (Number.isInteger(snapshot.requirement_count)) {
+        requirementCount.textContent = snapshot.requirement_count;
+      }
+      if (Number.isInteger(snapshot.story_count)) {
+        storyCount.textContent = snapshot.story_count;
+      }
+      const projectLabel = snapshot.project_name || snapshot.project_key;
+      if (projectLabel) {
+        projectIndicator.textContent = `Project: ${projectLabel}`;
+      }
+    }
+
+    function scheduleEventRefresh() {
+      if (activeEdit || refreshQueued) return;
+      refreshQueued = true;
+      window.setTimeout(async () => {
+        refreshQueued = false;
+        try {
+          await refreshDashboard();
+        } catch (error) {
+          showToast(`Refresh failed: ${error.message}`);
+        }
+      }, 50);
+    }
+
+    function connectEventStream() {
+      if (!("EventSource" in window)) {
+        startPollingFallback();
+        return;
+      }
+
+      const source = new EventSource("/api/events");
+      source.onopen = () => {
+        eventsConnected = true;
+        reconnectNoticeShown = false;
+        stopPollingFallback();
+      };
+      source.onmessage = (message) => {
+        try {
+          const payload = JSON.parse(message.data);
+          applyEventSnapshot(payload.snapshot);
+          scheduleEventRefresh();
+        } catch (error) {
+          showToast(`Live update failed: ${error.message}`);
+        }
+      };
+      source.onerror = () => {
+        if (eventsConnected && !reconnectNoticeShown) {
+          showToast("Live updates disconnected; polling until reconnect.");
+          reconnectNoticeShown = true;
+        }
+        eventsConnected = false;
+        startPollingFallback();
+      };
+    }
+
     requirementList.addEventListener("click", async (event) => {
       const button = event.target.closest("button");
       if (!button) return;
@@ -898,7 +1001,7 @@ DASHBOARD_HTML = """<!doctype html>
     });
 
     refreshDashboard().catch((error) => showToast(`Refresh failed: ${error.message}`));
-    setInterval(() => refreshDashboard().catch((error) => showToast(`Refresh failed: ${error.message}`)), 3000);
+    connectEventStream();
   </script>
 </body>
 </html>

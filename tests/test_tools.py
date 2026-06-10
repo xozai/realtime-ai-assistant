@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from realtime_assistant.config import AssistantSettings, configure_settings
+from realtime_assistant.events import event_bus
 from realtime_assistant.memory import memory
 from realtime_assistant.models import DiscoverySession, Requirement, UserStory
 from realtime_assistant.tools import (
@@ -37,6 +38,23 @@ def test_capture_requirement_returns_success_and_appears_in_memory() -> None:
     assert result["requirement"]["confidence"] == "high"
     assert memory.list_requirements()[0].text == "Users can log in with email"
     assert memory.list_requirements()[0].confidence == "high"
+
+
+def test_capture_requirement_emits_dashboard_event() -> None:
+    async def capture_and_collect() -> tuple[str, dict]:
+        async with event_bus.subscribe() as queue:
+            with (
+                patch("realtime_assistant.tools.llm.get_embedding", return_value=[1.0, 0.0]),
+                patch("realtime_assistant.llm.score_requirement_confidence", return_value="high"),
+            ):
+                result = await capture_requirement("Users can log in with email", "functional")
+            event = await asyncio.wait_for(queue.get(), timeout=1)
+            return event.type, result
+
+    event_type, result = asyncio.run(capture_and_collect())
+
+    assert event_type == "requirement_captured"
+    assert result["requirement_count"] == 1
 
 
 def test_ask_clarifying_question_returns_topic_and_question() -> None:
@@ -111,6 +129,27 @@ def test_generate_user_stories_tool_uses_configured_model() -> None:
     assert mock_generate.call_args.kwargs["model"] == "gpt-4.1-mini"
 
 
+def test_generate_user_stories_emits_dashboard_event(sample_user_story: UserStory) -> None:
+    memory.add_requirement(
+        Requirement(id="REQ-001", text="Users can log in with email", category="functional")
+    )
+
+    async def generate_and_collect() -> tuple[str, list[str]]:
+        async with event_bus.subscribe() as queue:
+            with patch(
+                "realtime_assistant.tools.llm.generate_user_stories",
+                return_value=[sample_user_story],
+            ):
+                await generate_user_stories()
+            event = await asyncio.wait_for(queue.get(), timeout=1)
+            return event.type, event.data["story_ids"]
+
+    event_type, story_ids = asyncio.run(generate_and_collect())
+
+    assert event_type == "stories_generated"
+    assert story_ids == ["US-001"]
+
+
 def test_refine_user_story_tool_uses_configured_model_and_replaces_only_target(
     sample_user_story: UserStory,
 ) -> None:
@@ -140,6 +179,27 @@ def test_refine_user_story_tool_uses_configured_model_and_replaces_only_target(
     assert len(memory.get_current_session().story_refinement_history) == 1
     assert mock_refine.call_args.kwargs["feedback"] == "Make criteria testable"
     assert mock_refine.call_args.kwargs["model"] == "gpt-4.1-mini"
+
+
+def test_refine_user_story_emits_dashboard_event(sample_user_story: UserStory) -> None:
+    refined = sample_user_story.model_copy(update={"title": "Refined email login"})
+    memory.add_requirement(
+        Requirement(id="REQ-001", text="Users can log in with email", category="functional")
+    )
+    memory.set_user_stories([sample_user_story])
+
+    async def refine_and_collect() -> tuple[str, str, int]:
+        async with event_bus.subscribe() as queue:
+            with patch("realtime_assistant.tools.llm.refine_user_story", return_value=refined):
+                await refine_user_story(sample_user_story.id, feedback="Make criteria testable")
+            event = await asyncio.wait_for(queue.get(), timeout=1)
+            return event.type, event.data["story_id"], event.data["history_count"]
+
+    event_type, story_id, history_count = asyncio.run(refine_and_collect())
+
+    assert event_type == "story_refined"
+    assert story_id == "US-001"
+    assert history_count == 1
 
 
 def test_refine_user_story_tool_returns_errors_for_missing_story_and_requirement(
