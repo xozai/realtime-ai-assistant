@@ -194,6 +194,30 @@ class JiraConfig(BaseModel):
         )
 
 
+class ConfluenceConfig(BaseModel):
+    """Authentication and target settings for Confluence page exports."""
+
+    base_url: str
+    user_email: str
+    api_token: str
+    space_key: str
+
+    @classmethod
+    def from_env(cls) -> ConfluenceConfig:
+        """Load config from environment variables.
+
+        CONFLUENCE_BASE_URL defaults to JIRA_BASE_URL since both share an
+        Atlassian tenant in the common cloud setup.
+        """
+        base_url = os.environ.get("CONFLUENCE_BASE_URL") or os.environ["JIRA_BASE_URL"]
+        return cls(
+            base_url=base_url,
+            user_email=os.environ["JIRA_USER_EMAIL"],
+            api_token=os.environ["JIRA_API_TOKEN"],
+            space_key=os.environ["CONFLUENCE_SPACE_KEY"],
+        )
+
+
 class DiscoverySession(BaseModel):
     session_id: str = Field(default_factory=lambda: f"DISC-{uuid4().hex[:8].upper()}")
     project_key: str = "default"

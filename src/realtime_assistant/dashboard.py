@@ -12,6 +12,7 @@ from realtime_assistant.events import dashboard_event, event_bus, format_sse
 from realtime_assistant.memory import memory
 from realtime_assistant.models import Priority, RequirementCategory
 from realtime_assistant.tools import (
+    export_to_confluence,
     export_user_stories,
     generate_session_summary,
     refine_user_story,
@@ -199,6 +200,11 @@ async def get_coverage() -> dict[str, Any]:
     if session.coverage_report is None:
         return {"coverage_report": None}
     return {"coverage_report": session.coverage_report.model_dump(mode="json")}
+
+
+@app.post("/api/confluence")
+async def post_confluence() -> dict[str, Any]:
+    return await export_to_confluence()
 
 
 @app.post("/api/jira/{project_key}")
@@ -501,6 +507,7 @@ DASHBOARD_HTML = """<!doctype html>
       </div>
       <button type="button" id="export-button">Export</button>
       <button type="button" id="summary-button">Generate Summary</button>
+      <button type="button" id="confluence-button">Export to Confluence</button>
       <button type="button" id="jira-button">Submit to Jira</button>
     </div>
   </header>
@@ -971,6 +978,20 @@ DASHBOARD_HTML = """<!doctype html>
         showToast("Executive summary generated.");
       } catch (error) {
         showToast(`Summary failed: ${error.message}`);
+      }
+    });
+
+    document.querySelector("#confluence-button").addEventListener("click", async () => {
+      showToast("Exporting to Confluence…");
+      try {
+        const result = await apiJson("/api/confluence", { method: "POST" });
+        showToast(
+          result.ok
+            ? `Confluence page published: ${result.page_title}`
+            : `Confluence export failed: ${result.error || "unknown error"}`
+        );
+      } catch (error) {
+        showToast(`Confluence export failed: ${error.message}`);
       }
     });
 
