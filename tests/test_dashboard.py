@@ -413,3 +413,32 @@ def test_root_html_contains_generate_summary_button() -> None:
     assert "Generate Summary" in response.text
     assert "summary-button" in response.text
     assert "/api/summary/generate" in response.text
+
+
+def test_post_confluence_returns_ok_when_configured() -> None:
+    from unittest.mock import patch
+    env = {
+        "JIRA_BASE_URL": "https://example.atlassian.net",
+        "JIRA_USER_EMAIL": "user@example.com",
+        "JIRA_API_TOKEN": "token",
+        "CONFLUENCE_SPACE_KEY": "DISC",
+    }
+    with patch("realtime_assistant.confluence_client.ConfluenceClient.validate_space", return_value=True), \
+         patch(
+             "realtime_assistant.confluence_client.ConfluenceClient.export_discovery_page",
+             return_value="https://example.atlassian.net/wiki/spaces/DISC/pages/1",
+         ), \
+         patch.dict("os.environ", env):
+        response = client.post("/api/confluence")
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+    assert "page_url" in response.json()
+
+
+def test_root_html_contains_confluence_button() -> None:
+    response = client.get("/")
+
+    assert "confluence-button" in response.text
+    assert "Export to Confluence" in response.text
+    assert "/api/confluence" in response.text

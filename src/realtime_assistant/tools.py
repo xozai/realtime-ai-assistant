@@ -14,6 +14,7 @@ from rich.table import Table
 from realtime_assistant import export as story_export
 from realtime_assistant import llm
 from realtime_assistant.config import get_settings
+from realtime_assistant.confluence_client import ConfluenceClient
 from realtime_assistant.coverage import analyze_coverage
 from realtime_assistant.events import event_bus
 from realtime_assistant.jira_client import JiraClient
@@ -26,6 +27,7 @@ from realtime_assistant.logging import (
 )
 from realtime_assistant.memory import DEDUP_SIMILARITY_THRESHOLD, cosine_similarity, memory
 from realtime_assistant.models import (
+    ConfluenceConfig,
     JiraConfig,
     Requirement,
     RequirementCategory,
@@ -193,6 +195,39 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "name": "dedupe_requirements",
         "description": "Report semantically similar requirement pairs using stored embeddings.",
         "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "type": "function",
+        "name": "export_to_confluence",
+        "description": (
+            "Publish a discovery summary page to Confluence containing requirements, "
+            "user stories, acceptance criteria, and links to Jira issues. "
+            "Call after generate_user_stories (and optionally submit_stories_to_jira). "
+            "Requires CONFLUENCE_SPACE_KEY and JIRA_BASE_URL env vars."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "description": "Page title. Defaults to 'Discovery: <session_id>' if omitted.",
+                },
+                "parent_page_id": {
+                    "type": "string",
+                    "description": "Optional Confluence page ID to nest the new page under.",
+                },
+                "jira_issue_keys": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Optional ordered list of Jira issue keys matching the generated "
+                        "stories (as returned by submit_stories_to_jira)."
+                    ),
+                },
+            },
+            "required": [],
+            "additionalProperties": False,
+        },
     },
 ]
 
@@ -673,6 +708,50 @@ async def dedupe_requirements() -> dict[str, Any]:
     }
 
 
+async def export_to_confluence(
+    title: str | None = None,
+    parent_page_id: str | None = None,
+    jira_issue_keys: list[str] | None = None,
+) -> dict[str, Any]:
+    """Publish a discovery summary page to Confluence."""
+    try:
+        config = ConfluenceConfig.from_env()
+    except KeyError as exc:
+        return {"ok": False, "error": f"Missing Confluence configuration: {exc.args[0]}"}
+
+    session = memory.get_current_session()
+    page_title = title or f"Discovery: {session.session_id}"
+    requirements = memory.list_requirements()
+    stories = memory.list_user_stories()
+
+    try:
+        client = ConfluenceClient(config)
+        if not client.validate_space(config.space_key):
+            return {
+                "ok": False,
+                "error": f"Confluence space '{config.space_key}' was not found or is not accessible.",
+            }
+        page_url = client.export_discovery_page(
+            title=page_title,
+            requirements=requirements,
+            stories=stories,
+            summary=session.summary,
+            jira_issue_keys=jira_issue_keys,
+            parent_page_id=parent_page_id,
+        )
+    except Exception as exc:
+        return {"ok": False, "error": f"Confluence export failed: {exc}"}
+
+    logger.info("Exported discovery page to Confluence: %s", page_url)
+    return {
+        "ok": True,
+        "page_url": page_url,
+        "page_title": page_title,
+        "requirement_count": len(requirements),
+        "story_count": len(stories),
+    }
+
+
 FUNCTION_MAP: dict[str, ToolHandler] = {
     "capture_requirement": capture_requirement,
     "ask_clarifying_question": ask_clarifying_question,
@@ -684,6 +763,7 @@ FUNCTION_MAP: dict[str, ToolHandler] = {
     "generate_session_summary": generate_session_summary,
     "analyze_story_coverage": analyze_story_coverage,
     "dedupe_requirements": dedupe_requirements,
+    "export_to_confluence": export_to_confluence,
 }
 
 
