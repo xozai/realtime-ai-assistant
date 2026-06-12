@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.1](https://github.com/xozai/realtime-ai-assistant/compare/v0.20.0...v0.20.1) (2026-06-12)
+
+
+### Documentation
+
+* update README for Confluence export (v0.20.0) ([#86](https://github.com/xozai/realtime-ai-assistant/issues/86)) ([ba14575](https://github.com/xozai/realtime-ai-assistant/commit/ba14575fb6b2c5878e9f39401ea35211479a5282))
+
 ## [0.20.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.19.0...v0.20.0) (2026-06-12)
 
 
