@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/xozai/realtime-ai-assistant/compare/v0.18.3...v0.19.0) (2026-06-12)
+
+
+### Features
+
+* notify teams when stories are ready ([#82](https://github.com/xozai/realtime-ai-assistant/issues/82)) ([cdb7261](https://github.com/xozai/realtime-ai-assistant/commit/cdb72613beabfdc88cac83687c21526f392dbc56))
+
 ## [0.18.3](https://github.com/xozai/realtime-ai-assistant/compare/v0.18.2...v0.18.3) (2026-06-10)
 
 
