@@ -32,6 +32,7 @@ Inspired by [`disler/poc-realtime-ai-assistant`](https://github.com/disler/poc-r
 | Multi-product support (isolated sessions per project) | ✅ Shipped |
 | Configurable story-generation model (`--story-model`, `STORY_GENERATION_MODEL`) | ✅ Shipped |
 | Jira dry-run preview + partial failure reporting | ✅ Shipped |
+| Slack/Teams ready-story notifications | ✅ Shipped |
 | Selective single-story refinement with history | ✅ Shipped |
 | Realtime dashboard updates via Server-Sent Events | ✅ Shipped |
 
@@ -180,7 +181,18 @@ or:
 curl -X POST 'http://localhost:8000/api/jira/PROJ?dry_run=true'
 ```
 
-### 8. Configure deduplication and cost rates, optional
+### 8. Configure Slack or Teams notifications, optional
+
+Set incoming webhook URLs to ping your team when stories are exported or submitted to Jira:
+
+```bash
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+TEAMS_WEBHOOK_URL=https://...
+```
+
+Unset or blank webhook URLs are silently disabled. Notification failures are logged as warnings and do not fail export or Jira submission.
+
+### 9. Configure deduplication and cost rates, optional
 
 Requirement deduplication uses embeddings. The default similarity threshold is `0.85`. Lower values merge more aggressively; higher values keep more near-duplicates.
 
@@ -200,7 +212,7 @@ EMBEDDING_PRICE_PER_1K=0.00002
 
 Update these if your OpenAI pricing or selected models differ from the defaults.
 
-### 9. Verify the installation
+### 10. Verify the installation
 
 Run the checks used in CI:
 
@@ -217,7 +229,7 @@ uv run ruff check src/ tests/
 uv run pytest tests/ -q --tb=short
 ```
 
-### 10. Start the app
+### 11. Start the app
 
 Default text mode with the dashboard enabled:
 
@@ -821,6 +833,14 @@ Real submissions return a per-story `results` list with `success`, `failure`, or
 
 ---
 
+## Slack and Teams Notifications
+
+When `SLACK_WEBHOOK_URL` or `TEAMS_WEBHOOK_URL` is configured, the assistant sends a compact incoming-webhook message after `export_user_stories` and `submit_stories_to_jira`. The message includes story count, requirement count, export file paths when present, and Jira issue keys when present.
+
+Webhook URLs are optional. Missing URLs disable that target, and delivery errors are logged as warnings without failing the export or Jira operation.
+
+---
+
 ## Example Session
 
 ```
@@ -885,6 +905,7 @@ realtime-ai-assistant/
 │       ├── events.py        # Dashboard event bus + Server-Sent Events serialization
 │       ├── transcript.py    # TranscriptWriter (JSON + Markdown, project-scoped paths)
 │       ├── jira_client.py   # JiraClient (stdlib urllib)
+│       ├── notifications.py # Slack/Teams incoming-webhook notifications
 │       ├── audio.py         # MicrophoneStream + SpeakerStream
 │       ├── dashboard.py     # FastAPI SPA (confidence badges, cost section, project header)
 │       ├── server.py        # uvicorn async task wrapper
@@ -901,6 +922,7 @@ realtime-ai-assistant/
     ├── test_prompts.py            # SYSTEM_PROMPT assertions
     ├── test_jira_client.py        # JiraClient HTTP (mocked)
     ├── test_tool_jira.py          # submit_stories_to_jira (mocked), coverage warning
+    ├── test_notifications.py      # Slack/Teams webhooks and tool notification hooks
     ├── test_audio.py              # MicrophoneStream (sounddevice mocked)
     ├── test_speaker_stream.py     # SpeakerStream enqueue + playback (mocked)
     ├── test_voice_mode.py         # Voice session config, --voice wiring

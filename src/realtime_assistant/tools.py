@@ -32,6 +32,7 @@ from realtime_assistant.models import (
     SessionSummary,
     UserStory,
 )
+from realtime_assistant.notifications import NotificationResult, notify_story_ready
 from realtime_assistant.transcript import TranscriptWriter
 
 ToolHandler = Callable[..., Awaitable[Any]]
@@ -394,6 +395,13 @@ async def export_user_stories(
         "paths": [str(path) for path in absolute_paths],
         "story_count": len(stories),
     }
+    notifications = await asyncio.to_thread(
+        notify_story_ready,
+        story_count=len(stories),
+        requirement_count=len(session.requirements),
+        export_paths=result["paths"],
+    )
+    result["notifications"] = _notification_metadata(notifications)
     await event_bus.publish(
         "export_completed",
         ok=result["ok"],
@@ -496,6 +504,12 @@ async def submit_stories_to_jira(
                 "failure_count": 0,
                 "skipped_count": len(stories),
             }
+            notifications = await asyncio.to_thread(
+                notify_story_ready,
+                story_count=len(stories),
+                requirement_count=len(memory.list_requirements()),
+            )
+            response["notifications"] = _notification_metadata(notifications)
             await event_bus.publish(
                 "jira_submission_completed",
                 ok=response["ok"],
@@ -552,6 +566,13 @@ async def submit_stories_to_jira(
     }
     if failure_count:
         response["error"] = f"{failure_count} Jira issue submission failed."
+    notifications = await asyncio.to_thread(
+        notify_story_ready,
+        story_count=len(stories),
+        requirement_count=len(memory.list_requirements()),
+        jira_keys=created_issues,
+    )
+    response["notifications"] = _notification_metadata(notifications)
     await event_bus.publish(
         "jira_submission_completed",
         ok=response["ok"],
@@ -563,6 +584,18 @@ async def submit_stories_to_jira(
         skipped_count=response["skipped_count"],
     )
     return response
+
+
+def _notification_metadata(results: list[NotificationResult]) -> list[dict[str, Any]]:
+    return [
+        {
+            "notifier": result.notifier,
+            "enabled": result.enabled,
+            "sent": result.sent,
+            **({"error": result.error} if result.error else {}),
+        }
+        for result in results
+    ]
 
 
 async def generate_session_summary() -> dict[str, Any]:
